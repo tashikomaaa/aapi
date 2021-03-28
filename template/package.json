@@ -1,0 +1,44 @@
+{
+  "name": "pi",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tashikomaaa/aapi.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tashikomaaa/aapi/issues"
+  },
+  "homepage": "https://github.com/tashikomaaa/aapi#readme",
+  "dependencies": {
+    "@octokit/auth-basic": "^1.4.8",
+    "@octokit/rest": "^18.5.2",
+    "chalk": "^4.1.0",
+    "clear": "^0.1.0",
+    "clui": "^0.3.6",
+    "config": "^3.3.6",
+    "configstore": "^5.0.1",
+    "express": "^4.17.1",
+    "figlet": "^1.5.0",
+    "inquirer": "^8.0.0",
+    "json": "^10.0.0",
+    "lodash": "^4.17.21",
+    "minimist": "^1.2.5",
+    "morgan": "^1.10.0",
+    "simple-git": "^2.37.0",
+    "touch": "^3.1.0",
+    "winston": "^3.3.3"
+  },
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "devDependencies": {},
+  "keywords": []
+}
