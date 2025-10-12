@@ -1,0 +1,11 @@
+import { mergeTypeDefs } from '@graphql-tools/merge';
+import { readFileSync } from 'fs';
+import path from 'path';
+import { glob } from 'glob';
+
+const cwd = path.resolve(process.cwd(), 'src', 'graphql', 'typeDefs');
+const files = glob.sync('**/*.graphql', { cwd });
+
+export const typeDefs = mergeTypeDefs(
+files.map((f) => readFileSync(path.join(cwd, f), 'utf8'))
+);

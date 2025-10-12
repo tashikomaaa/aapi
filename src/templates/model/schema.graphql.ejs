@@ -1,0 +1,17 @@
+type <%= Name %> {
+    _id: ID!
+    name: String!
+    createdAt: Date
+    updatedAt: Date
+    }
+
+    type Query {
+    <%= Name.charAt(0).toLowerCase() + Name.slice(1) %>s: [<%= Name %>!]!
+            <%= Name.charAt(0).toLowerCase() + Name.slice(1) %>(id: ID!): <%= Name %>
+                    }
+
+                    type Mutation {
+                    create<%= Name %>(name: String!): <%= Name %>
+                            update<%= Name %>(id: ID!, name: String!): <%= Name %>
+                                    delete<%= Name %>(id: ID!): Boolean!
+                                        }

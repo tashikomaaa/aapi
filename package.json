@@ -1,0 +1,32 @@
+{
+  "name": "aapi",
+  "version": "0.1.0",
+  "description": "Automatic API builder for Node.js (Apollo Server + Mongoose)",
+  "type": "module",
+  "bin": {
+    "aapi": "bin/cli.js"
+  },
+  "scripts": {
+    "dev": "node bin/cli.js --help"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "ejs": "^3.1.10",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^9.2.16",
+    "ora": "^8.0.1"
+  },
+  "main": "index.js",
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tashikomaaa/aapi.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tashikomaaa/aapi/issues"
+  },
+  "homepage": "https://github.com/tashikomaaa/aapi#readme"
+}

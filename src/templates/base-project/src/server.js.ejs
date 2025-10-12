@@ -1,0 +1,35 @@
+import 'dotenv/config';
+import express from 'express';
+import http from 'http';
+import { ApolloServer } from 'apollo-server-express';
+import mongoose from 'mongoose';
+import { typeDefs } from './graphql/typeDefs/index.js';
+import resolvers from './graphql/resolvers/index.js';
+import connectDB from './db/connection.js';
+
+const port = process.env.PORT || 4000;
+
+async function start() {
+await connectDB();
+
+const app = express();
+
+const apollo = new ApolloServer({
+typeDefs,
+resolvers,
+context: ({ req }) => ({ ip: req.ip }),
+});
+
+await apollo.start();
+apollo.applyMiddleware({ app, path: '/graphql' });
+
+const server = http.createServer(app);
+server.listen({ port }, () => {
+console.log(`🚀 Server ready at http://localhost:${port}${apollo.graphqlPath}`);
+});
+}
+
+start().catch((e) => {
+console.error('Startup error:', e);
+process.exit(1);
+});

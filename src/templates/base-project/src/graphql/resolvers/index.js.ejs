@@ -1,0 +1,27 @@
+import merge from 'lodash.merge';
+import path from 'path';
+import { glob } from 'glob';
+import { pathToFileURL } from 'url';
+
+const cwd = path.resolve(process.cwd(), 'src', 'graphql', 'resolvers');
+
+// Récupère tous les fichiers *Resolver.js
+const resolverFiles = glob.sync('**/*Resolver.js', { cwd });
+
+// Importe dynamiquement chaque resolver
+const resolversArray = [];
+
+for (const file of resolverFiles) {
+const modulePath = pathToFileURL(path.join(cwd, file)).href;
+const mod = await import(modulePath);
+if (mod.default) resolversArray.push(mod.default);
+}
+
+export default merge({}, ...resolversArray, {
+Query: {
+_ping: () => 'pong',
+},
+Mutation: {
+_noop: () => true,
+},
+});

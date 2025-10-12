@@ -1,0 +1,9 @@
+scalar Date
+
+type Query {
+  _ping: String!
+}
+
+type Mutation {
+  _noop: Boolean
+}

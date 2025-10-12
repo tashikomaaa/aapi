@@ -1,0 +1,17 @@
+type Product {
+    _id: ID!
+    name: String!
+    createdAt: Date
+    updatedAt: Date
+    }
+
+    type Query {
+    products: [Product!]!
+            product(id: ID!): Product
+                    }
+
+                    type Mutation {
+                    createProduct(name: String!): Product
+                            updateProduct(id: ID!, name: String!): Product
+                                    deleteProduct(id: ID!): Boolean!
+                                        }
