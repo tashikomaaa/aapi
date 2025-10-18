@@ -7,8 +7,28 @@
     "aapi": "bin/cli.js"
   },
   "scripts": {
-    "dev": "node bin/cli.js --help"
+    "dev": "node bin/cli.js --help",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md}\"",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "prepare": "husky install"
   },
+  "keywords": [
+    "api",
+    "graphql",
+    "apollo",
+    "mongoose",
+    "mongodb",
+    "cli",
+    "generator",
+    "scaffold",
+    "boilerplate",
+    "express"
+  ],
   "dependencies": {
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
@@ -17,14 +37,24 @@
     "inquirer": "^9.2.16",
     "ora": "^8.0.1"
   },
-  "main": "index.js",
-  "devDependencies": {},
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "husky": "^8.0.3",
+    "jest": "^29.7.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.5"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tashikomaaa/aapi.git"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/tashikomaaa/aapi/issues"
   },

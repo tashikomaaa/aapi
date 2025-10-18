@@ -1,0 +1,32 @@
+{
+  "env": {
+    "es2024": true,
+    "node": true
+  },
+  "extends": ["eslint:recommended", "prettier"],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-console": "off",
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "prefer-const": "error",
+    "no-var": "error",
+    "object-shorthand": "error",
+    "quote-props": ["error", "as-needed"],
+    "prefer-template": "error",
+    "prefer-arrow-callback": "error",
+    "arrow-body-style": ["error", "as-needed"],
+    "no-param-reassign": "warn",
+    "eqeqeq": ["error", "always"],
+    "no-throw-literal": "error",
+    "prefer-promise-reject-errors": "error"
+  }
+}

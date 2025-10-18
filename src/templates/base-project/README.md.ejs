@@ -1,0 +1,114 @@
+# <%= projectName %>
+
+API GraphQL generated with [AAPI](https://github.com/tashikomaaa/aapi)
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js >= 18
+- MongoDB (local or remote instance)
+
+### Installation
+
+```bash
+npm install
+```
+
+### Configuration
+
+Copy the `.env.example` file to `.env` and configure your environment variables:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set your MongoDB connection string:
+
+```
+MONGODB_URI=mongodb://localhost:27017/<%= projectName %>
+PORT=4000
+NODE_ENV=development
+```
+
+### Running the Server
+
+Development mode with auto-reload:
+
+```bash
+npm run dev
+```
+
+Production mode:
+
+```bash
+npm start
+```
+
+The server will start at `http://localhost:4000/graphql`
+
+### Available Scripts
+
+- `npm run dev` - Start development server with nodemon
+- `npm start` - Start production server
+- `npm test` - Run tests (if configured)
+
+### API Endpoints
+
+- **GraphQL Playground**: `http://localhost:4000/graphql`
+- **Health Check**: `http://localhost:4000/health`
+
+### Project Structure
+
+```
+<%= projectName %>/
+├── src/
+│   ├── db/
+│   │   └── connection.js       # MongoDB connection
+│   ├── models/                 # Mongoose models
+│   │   └── index.js
+│   ├── graphql/
+│   │   ├── typeDefs/          # GraphQL schemas
+│   │   │   ├── base.graphql
+│   │   │   └── index.js
+│   │   └── resolvers/         # GraphQL resolvers
+│   │       └── index.js
+│   └── server.js              # Express + Apollo Server
+├── .env.example
+├── .gitignore
+├── package.json
+└── README.md
+```
+
+### Generating Models
+
+Use the AAPI CLI to generate new models:
+
+```bash
+aapi generate model User
+aapi generate model Post
+```
+
+This will create:
+- Mongoose model (`src/models/User.js`)
+- GraphQL schema (`src/graphql/typeDefs/User.graphql`)
+- GraphQL resolver (`src/graphql/resolvers/UserResolver.js`)
+
+### List Models
+
+To see all generated models in your project:
+
+```bash
+aapi list
+```
+
+## Learn More
+
+- [AAPI Documentation](https://github.com/tashikomaaa/aapi)
+- [Apollo Server Docs](https://www.apollographql.com/docs/apollo-server/)
+- [Mongoose Docs](https://mongoosejs.com/docs/)
+- [GraphQL Docs](https://graphql.org/)
+
+## License
+
+This project was generated with AAPI. You are free to modify and use it as you wish.

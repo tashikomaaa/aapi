@@ -1,10 +1,47 @@
 import mongoose from 'mongoose';
 
+/**
+ * Establishes connection to MongoDB database
+ * @returns {Promise<void>}
+ * @throws {Error} If MONGODB_URI is missing or connection fails
+ */
 export default async function connectDB() {
-const uri = process.env.MONGODB_URI;
-if (!uri) throw new Error('MONGODB_URI manquant dans .env');
+  const uri = process.env.MONGODB_URI;
 
-mongoose.set('strictQuery', true);
-await mongoose.connect(uri, { autoIndex: true });
-console.log('📦 MongoDB connecté');
+  if (!uri) {
+    throw new Error(
+      'MONGODB_URI is missing in .env file. Please add it: MONGODB_URI=mongodb://localhost:27017/<%= projectName %>'
+    );
+  }
+
+  try {
+    mongoose.set('strictQuery', true);
+
+    await mongoose.connect(uri, {
+      autoIndex: true,
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+
+    console.log('📦 MongoDB connected successfully');
+    console.log(`   Database: ${mongoose.connection.name}`);
+  } catch (error) {
+    console.error('❌ MongoDB connection failed:', error.message);
+    console.error('   URI:', uri.replace(/\/\/[^:]+:[^@]+@/, '//<credentials>@')); // Hide credentials
+    throw error;
+  }
+
+  // Handle connection events
+  mongoose.connection.on('error', (err) => {
+    console.error('MongoDB connection error:', err);
+  });
+
+  mongoose.connection.on('disconnected', () => {
+    console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
+  });
+
+  mongoose.connection.on('reconnected', () => {
+    console.log('✅ MongoDB reconnected successfully');
+  });
 }

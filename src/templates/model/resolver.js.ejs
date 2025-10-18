@@ -1,16 +1,14 @@
 import <%= Name %> from '../../models/<%= Name %>.js';
 
-        export default {
-        Query: {
-        <%= Name.charAt(0).toLowerCase() + Name.slice(1) %>s: async () => <%= Name %>.find().lean(),
-                <%= Name.charAt(0).toLowerCase() + Name.slice(1) %>: async (_, { id }) => <%= Name %>
-                        .findById(id).lean(),
-                        },
-                        Mutation: {
-                        create<%= Name %>: async (_, { name }) => <%= Name %>.create({ name }),
-                                update<%= Name %>: async (_, { id, name }) => <%= Name %>.findByIdAndUpdate(id, { name
-                                        }, { new: true, lean: true }),
-                                        delete<%= Name %>: async (_, { id }) => !!(await <%= Name %>
-                                                .findByIdAndDelete(id)),
-                                                },
-                                                };
+export default {
+  Query: {
+    <%= Name.charAt(0).toLowerCase() + Name.slice(1) %>s: async () => <%= Name %>.find().lean(),
+    <%= Name.charAt(0).toLowerCase() + Name.slice(1) %>: async (_, { id }) => <%= Name %>.findById(id).lean(),
+  },
+  Mutation: {
+    create<%= Name %>: async (_, { name }) => <%= Name %>.create({ name }),
+    update<%= Name %>: async (_, { id, name }) =>
+      <%= Name %>.findByIdAndUpdate(id, { name }, { new: true, lean: true }),
+    delete<%= Name %>: async (_, { id }) => !!(await <%= Name %>.findByIdAndDelete(id)),
+  },
+};

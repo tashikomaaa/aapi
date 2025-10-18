@@ -6,7 +6,7 @@
 [![Node Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](#-contributing)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://github.com/yourusername/aapi/pulls)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://github.com/tashikomaaa/aapi/pulls)
 
 ---
 
@@ -46,7 +46,7 @@ To install globally (recommended during development):
 npm install -g aapi
 Or clone locally for development:
 
-git clone https://github.com/yourusername/aapi.git
+git clone https://github.com/tashikomaaa/aapi.git
 cd aapi
 npm install
 npm link   # exposes the `aapi` CLI globally
@@ -73,7 +73,7 @@ aapi generate model User
 ```
 
 This creates three files:
-```bash
+```pgsql
 src/
   models/
     User.js
@@ -218,7 +218,7 @@ Please follow the existing code style and include concise commit messages.
 
 If you want to hack on AAPI locally:
 
-git clone https://github.com/yourusername/aapi.git
+git clone https://github.com/tashikomaaa/aapi.git
 cd aapi
 npm install
 npm link   # expose CLI globally
@@ -231,12 +231,10 @@ You are free to use, modify, and distribute it for personal or commercial purpos
 
 🌍 Community & Support
 
-🧩 GitHub: github.com/yourusername/aapi
+🧩 GitHub: [github.com/tashikomaaa/aapi](https://github.com/tashikomaaa/aapi)
 
-💬 Discussions: GitHub Discussions
+💬 Discussions: [GitHub Discussions](https://github.com/tashikomaaa/aapi/discussions)
 
-🐛 Issues: Report a bug
-
-📣 Twitter/X: @yourhandle
+🐛 Issues: [Report a bug](https://github.com/tashikomaaa/aapi/issues)
 
 “Build APIs faster. Ship smarter.” — The AAPI Project

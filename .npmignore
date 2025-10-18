@@ -1,0 +1,36 @@
+# Tests
+test/
+tests/
+__tests__/
+*.test.js
+*.spec.js
+
+# Development
+.github/
+.vscode/
+.idea/
+*.md
+!README.md
+
+# Config files
+.eslintrc.json
+.prettierrc.json
+.prettierignore
+.editorconfig
+.nvmrc
+.husky/
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Misc
+.DS_Store
+*.log
+tmp/
+temp/
