@@ -1,0 +1,150 @@
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+
+/**
+ * JWT Authentication Utilities
+ * Provides secure token generation and verification
+ */
+
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'your-access-secret-change-in-production';
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'your-refresh-secret-change-in-production';
+const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '15m';
+const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || '7d';
+
+/**
+ * Generates an access token for a user
+ * @param {Object} payload - User data to encode (id, email, role)
+ * @returns {string} JWT access token
+ */
+export function generateAccessToken(payload) {
+  return jwt.sign(payload, ACCESS_TOKEN_SECRET, {
+    expiresIn: ACCESS_TOKEN_EXPIRY,
+    issuer: '<%= projectName %>',
+    audience: '<%= projectName %>-api',
+  });
+}
+
+/**
+ * Generates a refresh token for a user
+ * @param {Object} payload - User data to encode (id, email)
+ * @returns {string} JWT refresh token
+ */
+export function generateRefreshToken(payload) {
+  return jwt.sign(payload, REFRESH_TOKEN_SECRET, {
+    expiresIn: REFRESH_TOKEN_EXPIRY,
+    issuer: '<%= projectName %>',
+    audience: '<%= projectName %>-api',
+  });
+}
+
+/**
+ * Generates both access and refresh tokens
+ * @param {Object} user - User object with id, email, role
+ * @returns {Object} { accessToken, refreshToken }
+ */
+export function generateTokenPair(user) {
+  const payload = {
+    id: user._id || user.id,
+    email: user.email,
+    role: user.role || 'user',
+  };
+
+  return {
+    accessToken: generateAccessToken(payload),
+    refreshToken: generateRefreshToken(payload),
+  };
+}
+
+/**
+ * Verifies an access token
+ * @param {string} token - JWT token to verify
+ * @returns {Object} Decoded token payload
+ * @throws {Error} If token is invalid or expired
+ */
+export function verifyAccessToken(token) {
+  try {
+    return jwt.verify(token, ACCESS_TOKEN_SECRET, {
+      issuer: '<%= projectName %>',
+      audience: '<%= projectName %>-api',
+    });
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      throw new Error('Access token expired');
+    }
+    if (error.name === 'JsonWebTokenError') {
+      throw new Error('Invalid access token');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Verifies a refresh token
+ * @param {string} token - JWT refresh token to verify
+ * @returns {Object} Decoded token payload
+ * @throws {Error} If token is invalid or expired
+ */
+export function verifyRefreshToken(token) {
+  try {
+    return jwt.verify(token, REFRESH_TOKEN_SECRET, {
+      issuer: '<%= projectName %>',
+      audience: '<%= projectName %>-api',
+    });
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      throw new Error('Refresh token expired');
+    }
+    if (error.name === 'JsonWebTokenError') {
+      throw new Error('Invalid refresh token');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Hashes a password using bcrypt
+ * @param {string} password - Plain text password
+ * @returns {Promise<string>} Hashed password
+ */
+export async function hashPassword(password) {
+  const saltRounds = 12;
+  return bcrypt.hash(password, saltRounds);
+}
+
+/**
+ * Compares a plain text password with a hashed password
+ * @param {string} password - Plain text password
+ * @param {string} hash - Hashed password
+ * @returns {Promise<boolean>} True if password matches
+ */
+export async function comparePassword(password, hash) {
+  return bcrypt.compare(password, hash);
+}
+
+/**
+ * Extracts token from Authorization header
+ * @param {string} authHeader - Authorization header value
+ * @returns {string|null} Token or null
+ */
+export function extractToken(authHeader) {
+  if (!authHeader) return null;
+
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    return null;
+  }
+
+  return parts[1];
+}
+
+/**
+ * Creates a sanitized user object (removes sensitive data)
+ * @param {Object} user - User document from database
+ * @returns {Object} Sanitized user object
+ */
+export function sanitizeUser(user) {
+  const sanitized = { ...user };
+  delete sanitized.password;
+  delete sanitized.__v;
+  return sanitized;
+}

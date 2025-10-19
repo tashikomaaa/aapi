@@ -1,0 +1,249 @@
+/**
+ * Security Headers and CORS Configuration
+ * Implements security best practices for GraphQL APIs
+ */
+
+/**
+ * Security headers configuration
+ * Based on OWASP recommendations
+ */
+export const securityHeaders = {
+  // Prevents clickjacking attacks
+  'X-Frame-Options': 'DENY',
+
+  // Prevents MIME type sniffing
+  'X-Content-Type-Options': 'nosniff',
+
+  // Enables XSS protection in browsers
+  'X-XSS-Protection': '1; mode=block',
+
+  // Controls referrer information
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+
+  // Prevents Adobe Flash and PDF from executing
+  'X-Permitted-Cross-Domain-Policies': 'none',
+
+  // Removes X-Powered-By header
+  'X-Powered-By': '',
+
+  // Content Security Policy
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // GraphiQL requires unsafe-inline/eval
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+  ].join('; '),
+
+  // Strict Transport Security (HTTPS only)
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+
+  // Permissions Policy (formerly Feature-Policy)
+  'Permissions-Policy': [
+    'camera=()',
+    'microphone=()',
+    'geolocation=()',
+    'payment=()',
+  ].join(', '),
+};
+
+/**
+ * Production security headers (stricter CSP)
+ */
+export const productionSecurityHeaders = {
+  ...securityHeaders,
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'self' data: https:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+  ].join('; '),
+};
+
+/**
+ * CORS configuration
+ */
+export const corsOptions = {
+  // Allowed origins (configure in .env)
+  origin: (origin) => {
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+      'http://localhost:3000',
+      'http://localhost:4000',
+    ];
+
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return true;
+
+    return allowedOrigins.includes(origin);
+  },
+
+  // Allowed HTTP methods
+  methods: ['GET', 'POST', 'OPTIONS'],
+
+  // Allowed headers
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+  ],
+
+  // Exposed headers (visible to client)
+  exposedHeaders: [
+    'X-RateLimit-Limit',
+    'X-RateLimit-Remaining',
+    'X-RateLimit-Reset',
+  ],
+
+  // Allow credentials (cookies, auth headers)
+  credentials: true,
+
+  // Cache preflight requests for 24 hours
+  maxAge: 86400,
+};
+
+/**
+ * Apply security headers to response
+ * @param {Response} response - HTTP response object
+ * @param {string} env - Environment (development/production)
+ * @returns {Response} Response with security headers
+ */
+export function applySecurityHeaders(response, env = 'development') {
+  const headers = env === 'production' ? productionSecurityHeaders : securityHeaders;
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (value) {
+      response.headers.set(key, value);
+    } else {
+      // Remove header if value is empty
+      response.headers.delete(key);
+    }
+  }
+
+  return response;
+}
+
+/**
+ * CORS middleware for Node.js HTTP server
+ * @param {Request} request - HTTP request
+ * @param {Response} response - HTTP response
+ * @returns {boolean} True if request handled, false to continue
+ */
+export function handleCORS(request, response) {
+  const origin = request.headers.get('origin');
+
+  // Check if origin is allowed
+  const isAllowed = corsOptions.origin(origin);
+
+  if (isAllowed) {
+    response.headers.set('Access-Control-Allow-Origin', origin || '*');
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+  }
+
+  // Handle preflight OPTIONS request
+  if (request.method === 'OPTIONS') {
+    response.headers.set('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
+    response.headers.set('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
+    response.headers.set('Access-Control-Max-Age', corsOptions.maxAge.toString());
+    response.statusCode = 204;
+    response.end();
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * GraphQL Yoga plugin for security headers
+ */
+export const securityPlugin = {
+  onResponse({ response }) {
+    const env = process.env.NODE_ENV || 'development';
+    applySecurityHeaders(response, env);
+  },
+};
+
+/**
+ * Sanitize error messages in production
+ * @param {Error} error - Error object
+ * @param {string} env - Environment
+ * @returns {Object} Sanitized error
+ */
+export function sanitizeError(error, env = 'development') {
+  if (env === 'production') {
+    // Don't expose internal errors in production
+    if (!error.extensions?.code) {
+      return {
+        message: 'An internal error occurred',
+        extensions: {
+          code: 'INTERNAL_SERVER_ERROR',
+        },
+      };
+    }
+  }
+
+  return error;
+}
+
+/**
+ * Detect and block suspicious patterns
+ * @param {string} input - Input string to check
+ * @returns {boolean} True if suspicious
+ */
+export function isSuspicious(input) {
+  if (typeof input !== 'string') return false;
+
+  const suspiciousPatterns = [
+    /<script/i,
+    /javascript:/i,
+    /on\w+\s*=/i,
+    /\beval\s*\(/i,
+    /\bexec\s*\(/i,
+    /\$\{.*\}/,  // Template literal injection
+    /\{\{.*\}\}/, // Template injection
+    /__proto__/,
+    /constructor/,
+  ];
+
+  return suspiciousPatterns.some((pattern) => pattern.test(input));
+}
+
+/**
+ * Log security events
+ * @param {string} event - Event type
+ * @param {Object} details - Event details
+ */
+export function logSecurityEvent(event, details = {}) {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    event,
+    ...details,
+  };
+
+  // In production, send to logging service (e.g., Winston, Sentry)
+  if (process.env.NODE_ENV === 'production') {
+    // TODO: Integrate with logging service
+    console.warn('[SECURITY]', JSON.stringify(logEntry));
+  } else {
+    console.log('[SECURITY]', logEntry);
+  }
+}
+
+export default {
+  securityHeaders,
+  productionSecurityHeaders,
+  corsOptions,
+  applySecurityHeaders,
+  handleCORS,
+  securityPlugin,
+  sanitizeError,
+  isSuspicious,
+  logSecurityEvent,
+};

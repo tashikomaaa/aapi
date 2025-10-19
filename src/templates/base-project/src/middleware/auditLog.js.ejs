@@ -1,0 +1,294 @@
+import mongoose from 'mongoose';
+
+/**
+ * Audit Logging Middleware
+ * Tracks all important operations for security and compliance
+ */
+
+/**
+ * Audit Log Schema
+ */
+const auditLogSchema = new mongoose.Schema(
+  {
+    // User information
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
+    },
+    userEmail: String,
+    userRole: String,
+    userIp: String,
+
+    // Operation details
+    operation: {
+      type: String,
+      required: true,
+      enum: [
+        // Auth operations
+        'LOGIN',
+        'LOGOUT',
+        'REGISTER',
+        'PASSWORD_CHANGE',
+        'PASSWORD_RESET',
+        'TOKEN_REFRESH',
+        'LOGIN_FAILED',
+        // CRUD operations
+        'CREATE',
+        'READ',
+        'UPDATE',
+        'DELETE',
+        'LIST',
+        // Security events
+        'RATE_LIMIT_EXCEEDED',
+        'UNAUTHORIZED_ACCESS',
+        'SUSPICIOUS_ACTIVITY',
+        'PERMISSION_DENIED',
+      ],
+      index: true,
+    },
+
+    // Resource details
+    resourceType: String,
+    resourceId: String,
+    resourceData: mongoose.Schema.Types.Mixed,
+
+    // Request details
+    query: String,
+    variables: mongoose.Schema.Types.Mixed,
+    headers: mongoose.Schema.Types.Mixed,
+    userAgent: String,
+
+    // Result
+    success: {
+      type: Boolean,
+      default: true,
+    },
+    error: String,
+    errorCode: String,
+
+    // Metadata
+    duration: Number, // ms
+    timestamp: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
+  },
+  {
+    // Auto-create indexes
+    autoIndex: true,
+  }
+);
+
+// Index for common queries
+auditLogSchema.index({ userId: 1, timestamp: -1 });
+auditLogSchema.index({ operation: 1, timestamp: -1 });
+auditLogSchema.index({ success: 1, timestamp: -1 });
+
+// TTL index to auto-delete old logs (90 days)
+auditLogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
+const AuditLog = mongoose.model('AuditLog', auditLogSchema);
+
+/**
+ * Creates an audit log entry
+ * @param {Object} data - Audit data
+ * @returns {Promise<Object>} Created log entry
+ */
+export async function createAuditLog(data) {
+  try {
+    return await AuditLog.create(data);
+  } catch (error) {
+    // Don't fail the operation if audit log fails
+    console.error('Failed to create audit log:', error);
+    return null;
+  }
+}
+
+/**
+ * GraphQL middleware for audit logging
+ * @param {Function} resolver - GraphQL resolver
+ * @param {Object} options - Audit options
+ * @returns {Function} Wrapped resolver
+ */
+export function auditOperation(options = {}) {
+  return (resolver) => {
+    return async (parent, args, context, info) => {
+      const startTime = Date.now();
+      let success = true;
+      let error = null;
+
+      try {
+        const result = await resolver(parent, args, context, info);
+        return result;
+      } catch (err) {
+        success = false;
+        error = err;
+        throw err;
+      } finally {
+        const duration = Date.now() - startTime;
+
+        // Determine operation type
+        let operation = options.operation || info.operation.operation.toUpperCase();
+        if (operation === 'MUTATION') {
+          // Try to infer from field name
+          const fieldName = info.fieldName.toLowerCase();
+          if (fieldName.startsWith('create')) operation = 'CREATE';
+          else if (fieldName.startsWith('update')) operation = 'UPDATE';
+          else if (fieldName.startsWith('delete')) operation = 'DELETE';
+          else if (fieldName.includes('login')) operation = 'LOGIN';
+          else if (fieldName.includes('register')) operation = 'REGISTER';
+        } else if (operation === 'QUERY') {
+          operation = info.fieldName.endsWith('s') ? 'LIST' : 'READ';
+        }
+
+        // Extract resource info
+        const resourceType = options.resourceType || info.returnType.toString().replace(/[\[\]!]/g, '');
+        const resourceId = args.id || args.input?.id;
+
+        // Build audit log entry
+        const auditData = {
+          userId: context.user?.id,
+          userEmail: context.user?.email,
+          userRole: context.user?.role,
+          userIp: context.ip,
+          operation,
+          resourceType,
+          resourceId,
+          resourceData: options.logData ? args : undefined,
+          query: info.fieldName,
+          variables: options.logVariables ? args : undefined,
+          userAgent: context.userAgent,
+          success,
+          error: error?.message,
+          errorCode: error?.extensions?.code,
+          duration,
+        };
+
+        // Create audit log asynchronously (don't wait)
+        createAuditLog(auditData).catch((err) => {
+          console.error('Audit log error:', err);
+        });
+      }
+    };
+  };
+}
+
+/**
+ * Logs authentication events
+ * @param {Object} data - Event data
+ */
+export async function logAuthEvent(data) {
+  return createAuditLog({
+    operation: data.operation || 'LOGIN',
+    userId: data.userId,
+    userEmail: data.userEmail,
+    userIp: data.ip,
+    userAgent: data.userAgent,
+    success: data.success !== false,
+    error: data.error,
+    errorCode: data.errorCode,
+  });
+}
+
+/**
+ * Logs security events
+ * @param {Object} data - Event data
+ */
+export async function logSecurityEvent(data) {
+  return createAuditLog({
+    operation: data.operation || 'SUSPICIOUS_ACTIVITY',
+    userId: data.userId,
+    userIp: data.ip,
+    userAgent: data.userAgent,
+    resourceType: data.resourceType,
+    resourceId: data.resourceId,
+    error: data.description,
+    success: false,
+  });
+}
+
+/**
+ * Get audit logs with filtering
+ * @param {Object} filter - Filter criteria
+ * @param {Object} options - Query options
+ * @returns {Promise<Array>} Audit logs
+ */
+export async function getAuditLogs(filter = {}, options = {}) {
+  const {
+    limit = 100,
+    skip = 0,
+    sort = { timestamp: -1 },
+  } = options;
+
+  return AuditLog.find(filter)
+    .sort(sort)
+    .limit(limit)
+    .skip(skip)
+    .lean();
+}
+
+/**
+ * Get audit stats for a user
+ * @param {string} userId - User ID
+ * @param {Object} options - Options
+ * @returns {Promise<Object>} Statistics
+ */
+export async function getUserAuditStats(userId, options = {}) {
+  const { days = 30 } = options;
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const stats = await AuditLog.aggregate([
+    {
+      $match: {
+        userId: new mongoose.Types.ObjectId(userId),
+        timestamp: { $gte: since },
+      },
+    },
+    {
+      $group: {
+        _id: '$operation',
+        count: { $sum: 1 },
+        failures: {
+          $sum: { $cond: [{ $eq: ['$success', false] }, 1, 0] },
+        },
+      },
+    },
+  ]);
+
+  return stats;
+}
+
+/**
+ * Detect suspicious activity
+ * @param {string} userId - User ID
+ * @param {number} timeWindow - Time window in minutes
+ * @returns {Promise<boolean>} True if suspicious
+ */
+export async function detectSuspiciousActivity(userId, timeWindow = 15) {
+  const since = new Date();
+  since.setMinutes(since.getMinutes() - timeWindow);
+
+  const failedAttempts = await AuditLog.countDocuments({
+    userId: new mongoose.Types.ObjectId(userId),
+    timestamp: { $gte: since },
+    success: false,
+    operation: { $in: ['LOGIN', 'LOGIN_FAILED', 'UNAUTHORIZED_ACCESS'] },
+  });
+
+  // Flag if more than 5 failed attempts in time window
+  return failedAttempts > 5;
+}
+
+export default {
+  AuditLog,
+  createAuditLog,
+  auditOperation,
+  logAuthEvent,
+  logSecurityEvent,
+  getAuditLogs,
+  getUserAuditStats,
+  detectSuspiciousActivity,
+};

@@ -1,0 +1,301 @@
+import mongoose from 'mongoose';
+import { hashPassword } from '../utils/auth.js';
+import { isValidEmail } from '../middleware/sanitize.js';
+
+/**
+ * User Model with Security Features
+ * Includes authentication, authorization, and audit trails
+ */
+
+const userSchema = new mongoose.Schema(
+  {
+    // Basic info
+    email: {
+      type: String,
+      required: [true, 'Email is required'],
+      unique: true,
+      lowercase: true,
+      trim: true,
+      validate: {
+        validator: isValidEmail,
+        message: 'Please provide a valid email address',
+      },
+      index: true,
+    },
+
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: [8, 'Password must be at least 8 characters'],
+      select: false, // Don't return password in queries by default
+    },
+
+    // Profile
+    firstName: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'First name cannot exceed 50 characters'],
+    },
+
+    lastName: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'Last name cannot exceed 50 characters'],
+    },
+
+    // Authorization
+    role: {
+      type: String,
+      enum: ['user', 'moderator', 'admin'],
+      default: 'user',
+      index: true,
+    },
+
+    permissions: [{
+      type: String,
+      enum: [
+        'read:own',
+        'write:own',
+        'delete:own',
+        'read:all',
+        'write:all',
+        'delete:all',
+        'manage:users',
+      ],
+    }],
+
+    // Account status
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    verificationToken: {
+      type: String,
+      select: false,
+    },
+
+    verificationTokenExpires: {
+      type: Date,
+      select: false,
+    },
+
+    // Password reset
+    passwordResetToken: {
+      type: String,
+      select: false,
+    },
+
+    passwordResetExpires: {
+      type: Date,
+      select: false,
+    },
+
+    // Refresh tokens (for JWT rotation)
+    refreshTokens: [{
+      token: {
+        type: String,
+        required: true,
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
+      expiresAt: {
+        type: Date,
+        required: true,
+      },
+      device: String,
+      ip: String,
+    }],
+
+    // Security
+    lastLogin: Date,
+    lastLoginIp: String,
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockUntil: Date,
+
+    // Two-factor authentication (optional)
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    twoFactorSecret: {
+      type: String,
+      select: false,
+    },
+
+    // Audit
+    lastPasswordChange: Date,
+    passwordHistory: [{
+      hash: String,
+      changedAt: Date,
+    }],
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      transform: (doc, ret) => {
+        // Remove sensitive fields when converting to JSON
+        delete ret.password;
+        delete ret.passwordResetToken;
+        delete ret.passwordResetExpires;
+        delete ret.verificationToken;
+        delete ret.verificationTokenExpires;
+        delete ret.refreshTokens;
+        delete ret.twoFactorSecret;
+        delete ret.passwordHistory;
+        delete ret.__v;
+        return ret;
+      },
+    },
+  }
+);
+
+// Indexes for performance
+userSchema.index({ email: 1, isActive: 1 });
+userSchema.index({ role: 1, isActive: 1 });
+userSchema.index({ createdAt: -1 });
+
+// Virtual: Full name
+userSchema.virtual('fullName').get(function () {
+  return `${this.firstName || ''} ${this.lastName || ''}`.trim() || 'Anonymous';
+});
+
+// Virtual: Is account locked
+userSchema.virtual('isLocked').get(function () {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
+});
+
+// Pre-save hook: Hash password if modified
+userSchema.pre('save', async function (next) {
+  // Only hash password if it has been modified (or is new)
+  if (!this.isModified('password')) {
+    return next();
+  }
+
+  try {
+    // Hash password
+    this.password = await hashPassword(this.password);
+
+    // Update password change timestamp
+    this.lastPasswordChange = new Date();
+
+    // Store in password history (for preventing reuse)
+    if (!this.passwordHistory) {
+      this.passwordHistory = [];
+    }
+    this.passwordHistory.push({
+      hash: this.password,
+      changedAt: new Date(),
+    });
+
+    // Keep only last 5 passwords
+    if (this.passwordHistory.length > 5) {
+      this.passwordHistory = this.passwordHistory.slice(-5);
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Method: Check if account is locked
+userSchema.methods.isAccountLocked = function () {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
+};
+
+// Method: Increment login attempts
+userSchema.methods.incLoginAttempts = async function () {
+  // If we have a previous lock that has expired, reset attempts
+  if (this.lockUntil && this.lockUntil < Date.now()) {
+    return this.updateOne({
+      $set: { loginAttempts: 1 },
+      $unset: { lockUntil: 1 },
+    });
+  }
+
+  // Otherwise, increment attempts
+  const updates = { $inc: { loginAttempts: 1 } };
+
+  // Lock account after 5 failed attempts
+  const maxAttempts = 5;
+  const lockTime = 2 * 60 * 60 * 1000; // 2 hours
+
+  if (this.loginAttempts + 1 >= maxAttempts && !this.isLocked) {
+    updates.$set = { lockUntil: Date.now() + lockTime };
+  }
+
+  return this.updateOne(updates);
+};
+
+// Method: Reset login attempts
+userSchema.methods.resetLoginAttempts = async function () {
+  return this.updateOne({
+    $set: { loginAttempts: 0 },
+    $unset: { lockUntil: 1 },
+  });
+};
+
+// Method: Add refresh token
+userSchema.methods.addRefreshToken = async function (token, expiresAt, metadata = {}) {
+  this.refreshTokens.push({
+    token,
+    expiresAt,
+    device: metadata.device,
+    ip: metadata.ip,
+    createdAt: new Date(),
+  });
+
+  // Keep only last 5 refresh tokens per user
+  if (this.refreshTokens.length > 5) {
+    this.refreshTokens = this.refreshTokens.slice(-5);
+  }
+
+  return this.save();
+};
+
+// Method: Remove refresh token
+userSchema.methods.removeRefreshToken = async function (token) {
+  this.refreshTokens = this.refreshTokens.filter((rt) => rt.token !== token);
+  return this.save();
+};
+
+// Method: Remove expired refresh tokens
+userSchema.methods.cleanupRefreshTokens = async function () {
+  const now = new Date();
+  this.refreshTokens = this.refreshTokens.filter((rt) => rt.expiresAt > now);
+  return this.save();
+};
+
+// Static method: Find by email
+userSchema.statics.findByEmail = function (email) {
+  return this.findOne({ email: email.toLowerCase() });
+};
+
+// Static method: Find active users
+userSchema.statics.findActive = function (filter = {}) {
+  return this.find({ ...filter, isActive: true });
+};
+
+// Static method: Count by role
+userSchema.statics.countByRole = function () {
+  return this.aggregate([
+    { $match: { isActive: true } },
+    { $group: { _id: '$role', count: { $sum: 1 } } },
+  ]);
+};
+
+const User = mongoose.model('User', userSchema);
+
+export default User;

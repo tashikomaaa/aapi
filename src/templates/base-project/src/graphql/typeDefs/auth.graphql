@@ -1,0 +1,78 @@
+# User type
+type User {
+  _id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+  fullName: String
+  role: UserRole!
+  permissions: [Permission!]!
+  isActive: Boolean!
+  isVerified: Boolean!
+  lastLogin: Date
+  createdAt: Date!
+  updatedAt: Date!
+}
+
+# User roles enum
+enum UserRole {
+  user
+  moderator
+  admin
+}
+
+# Permissions enum
+enum Permission {
+  read_own
+  write_own
+  delete_own
+  read_all
+  write_all
+  delete_all
+  manage_users
+}
+
+# Authentication response
+type AuthPayload {
+  user: User!
+  accessToken: String!
+  refreshToken: String!
+}
+
+# Token refresh response
+type TokenPayload {
+  accessToken: String!
+  refreshToken: String!
+}
+
+# Register input
+input RegisterInput {
+  email: String!
+  password: String!
+  firstName: String
+  lastName: String
+}
+
+# Queries
+type Query {
+  # Get current authenticated user
+  me: User
+}
+
+# Mutations
+type Mutation {
+  # Register a new user
+  register(input: RegisterInput!): AuthPayload!
+
+  # Login with email and password
+  login(email: String!, password: String!): AuthPayload!
+
+  # Refresh access token
+  refreshToken(refreshToken: String!): TokenPayload!
+
+  # Logout (invalidate refresh token)
+  logout(refreshToken: String): Boolean!
+
+  # Change password (requires authentication)
+  changePassword(currentPassword: String!, newPassword: String!): Boolean!
+}

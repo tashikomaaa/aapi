@@ -1,0 +1,109 @@
+import { verifyAccessToken, extractToken } from '../utils/auth.js';
+
+/**
+ * Authentication Middleware
+ * Verifies JWT token and adds user to context
+ */
+
+/**
+ * GraphQL authentication middleware
+ * Adds authenticated user to context
+ * @param {Object} context - GraphQL context
+ * @returns {Object} Enhanced context with user
+ */
+export function authenticateGraphQL(context) {
+  const authHeader = context.request?.headers?.get('authorization') ||
+                     context.req?.headers?.authorization;
+
+  const token = extractToken(authHeader);
+
+  if (!token) {
+    return { ...context, user: null, isAuthenticated: false };
+  }
+
+  try {
+    const decoded = verifyAccessToken(token);
+    return {
+      ...context,
+      user: decoded,
+      isAuthenticated: true,
+    };
+  } catch (error) {
+    console.error('Authentication error:', error.message);
+    return { ...context, user: null, isAuthenticated: false };
+  }
+}
+
+/**
+ * Require authentication for a resolver
+ * @param {Function} resolver - GraphQL resolver function
+ * @returns {Function} Wrapped resolver that requires authentication
+ */
+export function requireAuth(resolver) {
+  return (parent, args, context, info) => {
+    if (!context.isAuthenticated || !context.user) {
+      throw new Error('Authentication required');
+    }
+    return resolver(parent, args, context, info);
+  };
+}
+
+/**
+ * Require specific role(s) for a resolver
+ * @param {string|string[]} roles - Required role(s)
+ * @param {Function} resolver - GraphQL resolver function
+ * @returns {Function} Wrapped resolver that requires role
+ */
+export function requireRole(roles, resolver) {
+  const allowedRoles = Array.isArray(roles) ? roles : [roles];
+
+  return (parent, args, context, info) => {
+    if (!context.isAuthenticated || !context.user) {
+      throw new Error('Authentication required');
+    }
+
+    if (!allowedRoles.includes(context.user.role)) {
+      throw new Error(
+        `Insufficient permissions. Required role: ${allowedRoles.join(' or ')}`
+      );
+    }
+
+    return resolver(parent, args, context, info);
+  };
+}
+
+/**
+ * Require user to own the resource or be admin
+ * @param {Function} getOwnerId - Function to extract owner ID from args
+ * @param {Function} resolver - GraphQL resolver function
+ * @returns {Function} Wrapped resolver
+ */
+export function requireOwnerOrAdmin(getOwnerId, resolver) {
+  return (parent, args, context, info) => {
+    if (!context.isAuthenticated || !context.user) {
+      throw new Error('Authentication required');
+    }
+
+    const ownerId = getOwnerId(args);
+    const userId = context.user.id;
+    const isAdmin = context.user.role === 'admin';
+
+    if (ownerId !== userId && !isAdmin) {
+      throw new Error('You can only access your own resources');
+    }
+
+    return resolver(parent, args, context, info);
+  };
+}
+
+/**
+ * Optional authentication (doesn't throw error if not authenticated)
+ * @param {Function} resolver - GraphQL resolver function
+ * @returns {Function} Wrapped resolver
+ */
+export function optionalAuth(resolver) {
+  return (parent, args, context, info) => {
+    // Just pass through - context already has user if authenticated
+    return resolver(parent, args, context, info);
+  };
+}

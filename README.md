@@ -39,14 +39,31 @@ You can still use Apollo Server with `--apollo` flag if needed.
 
 ## ✨ Features
 
-✅ One-command project setup (`aapi create <project>`)  
-✅ Automatic MongoDB + Apollo Server integration  
-✅ Model generator (`aapi generate model <Name>`)  
-✅ Auto-discovery of resolvers (no manual imports needed)  
-✅ Dynamic EJS-based templates  
-✅ Clean modular file structure  
-✅ 100% ES Modules  
+✅ One-command project setup (`aapi create <project>`)
+✅ Automatic MongoDB + Apollo Server/GraphQL Yoga integration
+✅ Model generator (`aapi generate model <Name>`)
+✅ JSON schema import (`aapi import data.json`) - Auto-detect fields!
+✅ **Secure mode** (`--secure`) - JWT auth, RBAC, rate limiting, audit logging
+✅ Auto-discovery of resolvers (no manual imports needed)
+✅ Dynamic EJS-based templates
+✅ Clean modular file structure
+✅ 100% ES Modules
 ✅ Open-source & developer-friendly design
+
+### 🔒 Security Features
+
+With the `--secure` flag, AAPI generates production-ready security features:
+
+- **JWT Authentication** - Access & refresh token system with bcrypt password hashing
+- **Role-Based Access Control (RBAC)** - User, moderator, admin roles with middleware
+- **Rate Limiting** - DDoS protection with configurable limits (5/15min for auth, 100/15min for API)
+- **Input Sanitization** - XSS and NoSQL injection prevention with validator.js
+- **Security Headers** - OWASP recommended headers (CSP, HSTS, X-Frame-Options, etc.)
+- **Audit Logging** - Track all operations with MongoDB TTL (90-day retention)
+- **Account Locking** - Automatic lockout after 5 failed login attempts
+- **CORS Protection** - Configurable origin whitelist
+
+See [SECURITY.md](SECURITY.md) for comprehensive security documentation.
 
 ---
 
@@ -77,6 +94,24 @@ npm install
 cp .env.example .env
 npm run dev
 ```
+
+**With security features (recommended for production):**
+
+```bash
+aapi create my-api --secure
+cd my-api
+npm install
+cp .env.example .env
+
+# Generate JWT secrets (IMPORTANT!)
+npm run security:generate-secret
+
+# Update .env with generated secrets
+# Then start the server
+npm run dev
+```
+
+See [SECURITY.md](SECURITY.md) for complete security guide.
 
 **Using Apollo Server (legacy):**
 
@@ -240,15 +275,92 @@ deleteUser: async (_, { id }) => !!(await User.findByIdAndDelete(id)),
 },
 };
 
-🧰 Tech Stack
-Layer Library
-GraphQL Server Apollo Server Express
-Web Framework Express.js
-Database MongoDB + Mongoose
-CLI Commander.js + Inquirer
-Templates EJS
-Utils fs-extra, ora, chalk
-Module system ES Modules (Node >=18)
+## 🛠 CLI Commands
+
+### Project Creation
+
+```bash
+# Create new project with GraphQL Yoga (default)
+aapi create <name>
+
+# Create with security features
+aapi create <name> --secure
+
+# Create with Apollo Server
+aapi create <name> --apollo
+
+# Combine flags
+aapi create <name> --secure --yoga --force --skip-install
+
+# Available flags:
+#   --yoga          Use GraphQL Yoga (default)
+#   --apollo        Use Apollo Server
+#   --secure        Add authentication, authorization, security
+#   --force         Overwrite existing directory
+#   --skip-install  Skip npm install after creation
+```
+
+### Add to Existing Project
+
+```bash
+# Add AAPI to existing Node.js project
+aapi init
+
+# With security features
+aapi init --secure
+
+# With specific GraphQL server
+aapi init --yoga
+aapi init --apollo
+```
+
+### Model Generation
+
+```bash
+# Generate model manually
+aapi generate model <Name>
+
+# Generate model from JSON schema
+aapi import data.json
+aapi import users.json --name User
+
+# Preview what will be generated
+aapi import data.json --preview
+
+# Available flags:
+#   --force    Overwrite existing model files
+#   --name     Custom model name (for import)
+#   --preview  Show what will be generated without creating files
+```
+
+### List Models
+
+```bash
+# List all models in the project
+aapi list
+```
+
+### Help
+
+```bash
+aapi --help
+aapi --version
+```
+
+## 🧰 Tech Stack
+
+| Layer          | Library                                    |
+| -------------- | ------------------------------------------ |
+| GraphQL Server | GraphQL Yoga / Apollo Server               |
+| Web Framework  | GraphQL Yoga (native Node.js) / Express.js |
+| Database       | MongoDB + Mongoose                         |
+| Authentication | JWT (jsonwebtoken) + bcryptjs              |
+| Validation     | validator.js                               |
+| CLI            | Commander.js                               |
+| Templates      | EJS                                        |
+| Utils          | fs-extra, ora, chalk                       |
+| Module system  | ES Modules (Node >=18)                     |
+
 💡 Roadmap
 
 Interactive model generation (field types, required flags, etc.)

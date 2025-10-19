@@ -1,0 +1,284 @@
+/**
+ * Input Sanitization and Validation Middleware
+ * Protects against XSS, injection attacks, and invalid data
+ */
+
+/**
+ * Sanitizes a string by removing potentially dangerous characters
+ * @param {string} input - Input string
+ * @returns {string} Sanitized string
+ */
+export function sanitizeString(input) {
+  if (typeof input !== 'string') return input;
+
+  return input
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '') // Remove iframe tags
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+\s*=/gi, '') // Remove inline event handlers
+    .trim();
+}
+
+/**
+ * Sanitizes an object recursively
+ * @param {*} obj - Object to sanitize
+ * @returns {*} Sanitized object
+ */
+export function sanitizeObject(obj) {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (typeof obj === 'string') {
+    return sanitizeString(obj);
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => sanitizeObject(item));
+  }
+
+  if (typeof obj === 'object') {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(obj)) {
+      // Skip potentially dangerous keys
+      if (key.startsWith('$') || key.startsWith('__')) {
+        continue;
+      }
+      sanitized[key] = sanitizeObject(value);
+    }
+    return sanitized;
+  }
+
+  return obj;
+}
+
+/**
+ * Validates email format
+ * @param {string} email - Email to validate
+ * @returns {boolean} True if valid
+ */
+export function isValidEmail(email) {
+  if (typeof email !== 'string') return false;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 254;
+}
+
+/**
+ * Validates password strength
+ * @param {string} password - Password to validate
+ * @returns {Object} { valid: boolean, errors: string[] }
+ */
+export function validatePassword(password) {
+  const errors = [];
+
+  if (typeof password !== 'string') {
+    return { valid: false, errors: ['Password must be a string'] };
+  }
+
+  if (password.length < 8) {
+    errors.push('Password must be at least 8 characters long');
+  }
+
+  if (password.length > 128) {
+    errors.push('Password must be less than 128 characters');
+  }
+
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain at least one lowercase letter');
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least one uppercase letter');
+  }
+
+  if (!/[0-9]/.test(password)) {
+    errors.push('Password must contain at least one number');
+  }
+
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push('Password must contain at least one special character');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validates MongoDB ObjectId format
+ * @param {string} id - ID to validate
+ * @returns {boolean} True if valid ObjectId
+ */
+export function isValidObjectId(id) {
+  if (typeof id !== 'string') return false;
+  return /^[0-9a-fA-F]{24}$/.test(id);
+}
+
+/**
+ * Sanitizes and validates input for GraphQL mutations
+ * @param {Object} input - Input object
+ * @param {Object} rules - Validation rules
+ * @returns {Object} { valid: boolean, errors: string[], sanitized: Object }
+ */
+export function validateInput(input, rules = {}) {
+  const errors = [];
+  const sanitized = sanitizeObject(input);
+
+  for (const [field, fieldRules] of Object.entries(rules)) {
+    const value = sanitized[field];
+
+    // Required field check
+    if (fieldRules.required && (value === undefined || value === null || value === '')) {
+      errors.push(`${field} is required`);
+      continue;
+    }
+
+    // Skip further validation if field is optional and not provided
+    if (!fieldRules.required && (value === undefined || value === null)) {
+      continue;
+    }
+
+    // Type validation
+    if (fieldRules.type) {
+      const actualType = Array.isArray(value) ? 'array' : typeof value;
+      if (actualType !== fieldRules.type) {
+        errors.push(`${field} must be of type ${fieldRules.type}`);
+        continue;
+      }
+    }
+
+    // String validations
+    if (typeof value === 'string') {
+      if (fieldRules.minLength && value.length < fieldRules.minLength) {
+        errors.push(`${field} must be at least ${fieldRules.minLength} characters`);
+      }
+
+      if (fieldRules.maxLength && value.length > fieldRules.maxLength) {
+        errors.push(`${field} must be at most ${fieldRules.maxLength} characters`);
+      }
+
+      if (fieldRules.pattern && !fieldRules.pattern.test(value)) {
+        errors.push(`${field} format is invalid`);
+      }
+
+      if (fieldRules.email && !isValidEmail(value)) {
+        errors.push(`${field} must be a valid email address`);
+      }
+    }
+
+    // Number validations
+    if (typeof value === 'number') {
+      if (fieldRules.min !== undefined && value < fieldRules.min) {
+        errors.push(`${field} must be at least ${fieldRules.min}`);
+      }
+
+      if (fieldRules.max !== undefined && value > fieldRules.max) {
+        errors.push(`${field} must be at most ${fieldRules.max}`);
+      }
+    }
+
+    // Array validations
+    if (Array.isArray(value)) {
+      if (fieldRules.minItems && value.length < fieldRules.minItems) {
+        errors.push(`${field} must contain at least ${fieldRules.minItems} items`);
+      }
+
+      if (fieldRules.maxItems && value.length > fieldRules.maxItems) {
+        errors.push(`${field} must contain at most ${fieldRules.maxItems} items`);
+      }
+    }
+
+    // Custom validation function
+    if (fieldRules.validate) {
+      const customError = fieldRules.validate(value);
+      if (customError) {
+        errors.push(customError);
+      }
+    }
+
+    // Enum validation
+    if (fieldRules.enum && !fieldRules.enum.includes(value)) {
+      errors.push(`${field} must be one of: ${fieldRules.enum.join(', ')}`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitized,
+  };
+}
+
+/**
+ * GraphQL directive for input validation
+ * @param {Function} resolver - GraphQL resolver
+ * @param {Object} rules - Validation rules
+ * @returns {Function} Wrapped resolver
+ */
+export function validateArgs(rules) {
+  return (resolver) => {
+    return (parent, args, context, info) => {
+      const result = validateInput(args.input || args, rules);
+
+      if (!result.valid) {
+        const error = new Error('Validation failed');
+        error.extensions = {
+          code: 'BAD_USER_INPUT',
+          validationErrors: result.errors,
+        };
+        throw error;
+      }
+
+      // Replace args with sanitized version
+      if (args.input) {
+        args.input = result.sanitized;
+      } else {
+        Object.assign(args, result.sanitized);
+      }
+
+      return resolver(parent, args, context, info);
+    };
+  };
+}
+
+/**
+ * Prevents NoSQL injection by sanitizing MongoDB queries
+ * @param {Object} query - MongoDB query object
+ * @returns {Object} Sanitized query
+ */
+export function sanitizeMongoQuery(query) {
+  if (!query || typeof query !== 'object') {
+    return query;
+  }
+
+  const sanitized = {};
+
+  for (const [key, value] of Object.entries(query)) {
+    // Block keys starting with $ (MongoDB operators from user input)
+    if (key.startsWith('$')) {
+      console.warn(`Blocked potentially dangerous query key: ${key}`);
+      continue;
+    }
+
+    // Recursively sanitize nested objects
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      sanitized[key] = sanitizeMongoQuery(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized;
+}
+
+export default {
+  sanitizeString,
+  sanitizeObject,
+  isValidEmail,
+  validatePassword,
+  isValidObjectId,
+  validateInput,
+  validateArgs,
+  sanitizeMongoQuery,
+};

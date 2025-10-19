@@ -30,6 +30,7 @@ program
   .option('--skip-install', 'Skip npm install after project creation')
   .option('--yoga', 'Use GraphQL Yoga instead of Apollo Server (recommended)')
   .option('--apollo', 'Use Apollo Server + Express (legacy)')
+  .option('--secure', 'Include authentication, authorization, and security features')
   .action((projectName, options) => create(projectName, options));
 
 program
@@ -38,6 +39,7 @@ program
   .option('-f, --force', 'Overwrite existing AAPI files if they exist')
   .option('--yoga', 'Use GraphQL Yoga instead of Apollo Server (recommended)')
   .option('--apollo', 'Use Apollo Server + Express (legacy)')
+  .option('--secure', 'Include authentication, authorization, and security features')
   .action((options) => init(options));
 
 program

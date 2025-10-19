@@ -78,9 +78,18 @@ export default async function create(projectName, options = {}) {
 
     // Determine which GraphQL server to use (default to Yoga)
     const useYoga = options.yoga || (!options.apollo && !options.yoga);
+    const useSecure = options.secure || false;
     const serverType = useYoga ? 'GraphQL Yoga' : 'Apollo Server';
+    const securityMode = useSecure ? ' (Secure)' : '';
 
-    console.log(chalk.gray(`Using ${serverType}...`));
+    console.log(chalk.gray(`Using ${serverType}${securityMode}...`));
+    if (useSecure) {
+      console.log(chalk.green('✓ Authentication & Authorization enabled'));
+      console.log(chalk.green('✓ Rate limiting enabled'));
+      console.log(chalk.green('✓ Input sanitization enabled'));
+      console.log(chalk.green('✓ Audit logging enabled'));
+      console.log(chalk.green('✓ Security headers enabled'));
+    }
 
     // Render EJS files
     const render = async (srcRel, destRel, locals = {}) => {
@@ -91,14 +100,35 @@ export default async function create(projectName, options = {}) {
       await fs.writeFile(dest, content, 'utf8');
     };
 
-    // Choose package.json based on server type
-    const packageTemplate = useYoga ? 'package-yoga.json.ejs' : 'package.json.ejs';
+    // Choose package.json based on server type and security
+    let packageTemplate;
+    if (useSecure && useYoga) {
+      packageTemplate = 'package-secure-yoga.json.ejs';
+    } else if (useYoga) {
+      packageTemplate = 'package-yoga.json.ejs';
+    } else {
+      packageTemplate = 'package.json.ejs';
+    }
     await render(packageTemplate, 'package.json');
     await render('README.md.ejs', 'README.md');
 
-    // Choose server template based on server type
-    const serverTemplate = useYoga ? 'src/server-yoga.js.ejs' : 'src/server.js.ejs';
+    // Choose server template based on server type and security
+    let serverTemplate;
+    if (useSecure && useYoga) {
+      serverTemplate = 'src/server-secure-yoga.js.ejs';
+    } else if (useYoga) {
+      serverTemplate = 'src/server-yoga.js.ejs';
+    } else {
+      serverTemplate = 'src/server.js.ejs';
+    }
     await render(serverTemplate, path.join('src', 'server.js'));
+
+    // Copy appropriate .env.example
+    const envTemplate = useSecure ? '.env.secure.example' : '.env.example';
+    const envSrc = path.join(tplRoot, envTemplate);
+    if (await fs.pathExists(envSrc)) {
+      await fs.copy(envSrc, path.join(targetDir, '.env.example'));
+    }
     await render(
       path.join('src', 'db', 'connection.js.ejs'),
       path.join('src', 'db', 'connection.js')
@@ -116,6 +146,60 @@ export default async function create(projectName, options = {}) {
       path.join('src', 'graphql', 'resolvers', 'index.js')
     );
 
+    // Copy security files if --secure flag is enabled
+    if (useSecure) {
+      spinner.text = 'Adding security features...';
+
+      // Create directories
+      await fs.ensureDir(path.join(targetDir, 'src', 'utils'));
+      await fs.ensureDir(path.join(targetDir, 'src', 'middleware'));
+
+      // Copy security utilities
+      await render(path.join('src', 'utils', 'auth.js.ejs'), path.join('src', 'utils', 'auth.js'));
+
+      // Copy security middleware
+      await render(
+        path.join('src', 'middleware', 'auth.js.ejs'),
+        path.join('src', 'middleware', 'auth.js')
+      );
+      await render(
+        path.join('src', 'middleware', 'rateLimiter.js.ejs'),
+        path.join('src', 'middleware', 'rateLimiter.js')
+      );
+      await render(
+        path.join('src', 'middleware', 'sanitize.js.ejs'),
+        path.join('src', 'middleware', 'sanitize.js')
+      );
+      await render(
+        path.join('src', 'middleware', 'security.js.ejs'),
+        path.join('src', 'middleware', 'security.js')
+      );
+      await render(
+        path.join('src', 'middleware', 'auditLog.js.ejs'),
+        path.join('src', 'middleware', 'auditLog.js')
+      );
+
+      // Copy User model
+      await render(
+        path.join('src', 'models', 'User.js.ejs'),
+        path.join('src', 'models', 'User.js')
+      );
+
+      // Copy authentication resolvers and schema
+      await render(
+        path.join('src', 'graphql', 'resolvers', 'AuthResolver.js.ejs'),
+        path.join('src', 'graphql', 'resolvers', 'AuthResolver.js')
+      );
+
+      const authSchemaPath = path.join(tplRoot, 'src', 'graphql', 'typeDefs', 'auth.graphql');
+      if (await fs.pathExists(authSchemaPath)) {
+        await fs.copy(
+          authSchemaPath,
+          path.join(targetDir, 'src', 'graphql', 'typeDefs', 'auth.graphql')
+        );
+      }
+    }
+
     spinner.succeed(chalk.green(`Project ${projectName} created successfully!`));
 
     console.log(`\n👉 Next steps:`);
@@ -128,11 +212,25 @@ export default async function create(projectName, options = {}) {
       console.log(chalk.cyan('  npm install'));
     }
 
-    console.log(chalk.cyan('  cp .env.example .env  # configure MONGODB_URI'));
-    console.log(chalk.cyan('  npm run dev'));
+    console.log(chalk.cyan('  cp .env.example .env  # configure environment'));
 
-    if (options.skipInstall) {
-      console.log(chalk.gray('\n💡 Tip: Use --skip-install to skip dependency installation'));
+    if (useSecure) {
+      console.log(chalk.yellow('\n⚠️  IMPORTANT: Update JWT secrets in .env before deploying!'));
+      console.log(chalk.gray('  Generate secure secrets with:'));
+      console.log(chalk.gray('  npm run security:generate-secret'));
+    }
+
+    console.log(chalk.cyan('\n  npm run dev'));
+
+    if (useSecure) {
+      console.log(chalk.gray('\n📚 Security features documentation:'));
+      console.log(chalk.gray('  Authentication: JWT with access & refresh tokens'));
+      console.log(chalk.gray('  Authorization: Role-based access control (user/moderator/admin)'));
+      console.log(chalk.gray('  Rate limiting: Protects against DDoS attacks'));
+      console.log(chalk.gray('  Input sanitization: XSS and injection prevention'));
+      console.log(chalk.gray('  Audit logging: Track all operations'));
+      console.log(chalk.gray('  Security headers: OWASP recommended headers'));
+      console.log(chalk.gray('\n  Visit http://localhost:4000/security for configuration info'));
     }
   } catch (err) {
     spinner.fail(chalk.red(`Project creation failed: ${err.message}`));

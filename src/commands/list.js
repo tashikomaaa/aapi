@@ -47,9 +47,15 @@ export default async function list() {
       const hasResolver = await fs.pathExists(resolverPath);
 
       console.log(chalk.bold(`  ${model}`));
-      console.log(chalk.gray(`    Model:    ${hasSchema ? '✓' : '✗'} ${path.relative(cwd, modelPath)}`));
-      console.log(chalk.gray(`    Schema:   ${hasSchema ? '✓' : '✗'} ${path.relative(cwd, schemaPath)}`));
-      console.log(chalk.gray(`    Resolver: ${hasResolver ? '✓' : '✗'} ${path.relative(cwd, resolverPath)}`));
+      console.log(
+        chalk.gray(`    Model:    ${hasSchema ? '✓' : '✗'} ${path.relative(cwd, modelPath)}`)
+      );
+      console.log(
+        chalk.gray(`    Schema:   ${hasSchema ? '✓' : '✗'} ${path.relative(cwd, schemaPath)}`)
+      );
+      console.log(
+        chalk.gray(`    Resolver: ${hasResolver ? '✓' : '✗'} ${path.relative(cwd, resolverPath)}`)
+      );
 
       if (!hasSchema || !hasResolver) {
         console.log(chalk.yellow(`    ⚠ Incomplete model (missing files)`));
@@ -59,7 +65,7 @@ export default async function list() {
 
     console.log(chalk.cyan('💡 Tip: Use "aapi generate model <Name>" to create a new model\n'));
   } catch (err) {
-    console.error(chalk.red('Failed to list models: ' + err.message));
+    console.error(chalk.red(`Failed to list models: ${err.message}`));
     process.exit(1);
   }
 }

@@ -1,0 +1,406 @@
+import User from '../../models/User.js';
+import {
+  generateTokenPair,
+  comparePassword,
+  verifyRefreshToken,
+  sanitizeUser,
+} from '../../utils/auth.js';
+import { validateInput } from '../../middleware/sanitize.js';
+import { applyRateLimit } from '../../middleware/rateLimiter.js';
+import { logAuthEvent } from '../../middleware/auditLog.js';
+
+/**
+ * Authentication Resolvers
+ * Handles user registration, login, token refresh, and password management
+ */
+
+export default {
+  Query: {
+    /**
+     * Get current authenticated user
+     */
+    me: async (_, __, context) => {
+      if (!context.isAuthenticated || !context.user) {
+        throw new Error('Not authenticated');
+      }
+
+      const user = await User.findById(context.user.id);
+      if (!user || !user.isActive) {
+        throw new Error('User not found or inactive');
+      }
+
+      return sanitizeUser(user.toObject());
+    },
+  },
+
+  Mutation: {
+    /**
+     * Register a new user
+     */
+    register: async (_, { input }, context) => {
+      // Apply rate limiting for auth endpoints
+      applyRateLimit(context, 'auth');
+
+      // Validate input
+      const validation = validateInput(input, {
+        email: {
+          required: true,
+          email: true,
+          maxLength: 254,
+        },
+        password: {
+          required: true,
+          minLength: 8,
+          maxLength: 128,
+          validate: (password) => {
+            const hasLower = /[a-z]/.test(password);
+            const hasUpper = /[A-Z]/.test(password);
+            const hasNumber = /[0-9]/.test(password);
+            const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+            if (!hasLower || !hasUpper || !hasNumber || !hasSpecial) {
+              return 'Password must contain uppercase, lowercase, number, and special character';
+            }
+            return null;
+          },
+        },
+        firstName: {
+          required: false,
+          maxLength: 50,
+        },
+        lastName: {
+          required: false,
+          maxLength: 50,
+        },
+      });
+
+      if (!validation.valid) {
+        const error = new Error('Validation failed');
+        error.extensions = {
+          code: 'BAD_USER_INPUT',
+          validationErrors: validation.errors,
+        };
+        throw error;
+      }
+
+      const { email, password, firstName, lastName } = validation.sanitized;
+
+      // Check if user already exists
+      const existingUser = await User.findByEmail(email);
+      if (existingUser) {
+        // Log failed registration attempt
+        await logAuthEvent({
+          operation: 'REGISTER',
+          userEmail: email,
+          ip: context.ip,
+          userAgent: context.userAgent,
+          success: false,
+          error: 'Email already registered',
+        });
+
+        throw new Error('Email already registered');
+      }
+
+      // Create user
+      const user = await User.create({
+        email,
+        password,
+        firstName,
+        lastName,
+        role: 'user',
+        isActive: true,
+        isVerified: false, // Require email verification
+      });
+
+      // Generate tokens
+      const tokens = generateTokenPair(user);
+
+      // Store refresh token
+      const refreshTokenExpiry = new Date();
+      refreshTokenExpiry.setDate(refreshTokenExpiry.getDate() + 7);
+
+      await user.addRefreshToken(tokens.refreshToken, refreshTokenExpiry, {
+        ip: context.ip,
+        device: context.userAgent,
+      });
+
+      // Log successful registration
+      await logAuthEvent({
+        operation: 'REGISTER',
+        userId: user._id,
+        userEmail: user.email,
+        ip: context.ip,
+        userAgent: context.userAgent,
+        success: true,
+      });
+
+      return {
+        user: sanitizeUser(user.toObject()),
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      };
+    },
+
+    /**
+     * Login with email and password
+     */
+    login: async (_, { email, password }, context) => {
+      // Apply strict rate limiting for login
+      applyRateLimit(context, 'auth');
+
+      // Find user (include password for comparison)
+      const user = await User.findByEmail(email).select('+password');
+
+      if (!user) {
+        // Log failed login
+        await logAuthEvent({
+          operation: 'LOGIN_FAILED',
+          userEmail: email,
+          ip: context.ip,
+          userAgent: context.userAgent,
+          success: false,
+          error: 'User not found',
+        });
+
+        throw new Error('Invalid email or password');
+      }
+
+      // Check if account is locked
+      if (user.isAccountLocked()) {
+        await logAuthEvent({
+          operation: 'LOGIN_FAILED',
+          userId: user._id,
+          userEmail: user.email,
+          ip: context.ip,
+          userAgent: context.userAgent,
+          success: false,
+          error: 'Account locked',
+        });
+
+        throw new Error('Account is locked due to too many failed login attempts');
+      }
+
+      // Check if account is active
+      if (!user.isActive) {
+        throw new Error('Account is deactivated');
+      }
+
+      // Verify password
+      const isValidPassword = await comparePassword(password, user.password);
+
+      if (!isValidPassword) {
+        // Increment failed login attempts
+        await user.incLoginAttempts();
+
+        await logAuthEvent({
+          operation: 'LOGIN_FAILED',
+          userId: user._id,
+          userEmail: user.email,
+          ip: context.ip,
+          userAgent: context.userAgent,
+          success: false,
+          error: 'Invalid password',
+        });
+
+        throw new Error('Invalid email or password');
+      }
+
+      // Reset login attempts on successful login
+      await user.resetLoginAttempts();
+
+      // Update last login
+      user.lastLogin = new Date();
+      user.lastLoginIp = context.ip;
+      await user.save();
+
+      // Generate tokens
+      const tokens = generateTokenPair(user);
+
+      // Store refresh token
+      const refreshTokenExpiry = new Date();
+      refreshTokenExpiry.setDate(refreshTokenExpiry.getDate() + 7);
+
+      await user.addRefreshToken(tokens.refreshToken, refreshTokenExpiry, {
+        ip: context.ip,
+        device: context.userAgent,
+      });
+
+      // Log successful login
+      await logAuthEvent({
+        operation: 'LOGIN',
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        ip: context.ip,
+        userAgent: context.userAgent,
+        success: true,
+      });
+
+      return {
+        user: sanitizeUser(user.toObject()),
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      };
+    },
+
+    /**
+     * Refresh access token using refresh token
+     */
+    refreshToken: async (_, { refreshToken }, context) => {
+      try {
+        // Verify refresh token
+        const decoded = verifyRefreshToken(refreshToken);
+
+        // Find user and check if refresh token exists
+        const user = await User.findById(decoded.id);
+
+        if (!user || !user.isActive) {
+          throw new Error('User not found or inactive');
+        }
+
+        // Check if refresh token is in user's stored tokens
+        const storedToken = user.refreshTokens.find((rt) => rt.token === refreshToken);
+
+        if (!storedToken) {
+          throw new Error('Invalid refresh token');
+        }
+
+        // Check if token is expired
+        if (storedToken.expiresAt < new Date()) {
+          // Remove expired token
+          await user.removeRefreshToken(refreshToken);
+          throw new Error('Refresh token expired');
+        }
+
+        // Generate new token pair
+        const tokens = generateTokenPair(user);
+
+        // Remove old refresh token and add new one
+        await user.removeRefreshToken(refreshToken);
+
+        const newRefreshTokenExpiry = new Date();
+        newRefreshTokenExpiry.setDate(newRefreshTokenExpiry.getDate() + 7);
+
+        await user.addRefreshToken(tokens.refreshToken, newRefreshTokenExpiry, {
+          ip: context.ip,
+          device: context.userAgent,
+        });
+
+        // Log token refresh
+        await logAuthEvent({
+          operation: 'TOKEN_REFRESH',
+          userId: user._id,
+          userEmail: user.email,
+          ip: context.ip,
+          userAgent: context.userAgent,
+          success: true,
+        });
+
+        return {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        };
+      } catch (error) {
+        await logAuthEvent({
+          operation: 'TOKEN_REFRESH',
+          ip: context.ip,
+          userAgent: context.userAgent,
+          success: false,
+          error: error.message,
+        });
+
+        throw error;
+      }
+    },
+
+    /**
+     * Logout (invalidate refresh token)
+     */
+    logout: async (_, { refreshToken }, context) => {
+      if (!context.isAuthenticated) {
+        return true;
+      }
+
+      const user = await User.findById(context.user.id);
+
+      if (user && refreshToken) {
+        await user.removeRefreshToken(refreshToken);
+
+        await logAuthEvent({
+          operation: 'LOGOUT',
+          userId: user._id,
+          userEmail: user.email,
+          ip: context.ip,
+          userAgent: context.userAgent,
+          success: true,
+        });
+      }
+
+      return true;
+    },
+
+    /**
+     * Change password (requires current password)
+     */
+    changePassword: async (_, { currentPassword, newPassword }, context) => {
+      if (!context.isAuthenticated) {
+        throw new Error('Not authenticated');
+      }
+
+      const user = await User.findById(context.user.id).select('+password');
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Verify current password
+      const isValidPassword = await comparePassword(currentPassword, user.password);
+
+      if (!isValidPassword) {
+        await logAuthEvent({
+          operation: 'PASSWORD_CHANGE',
+          userId: user._id,
+          userEmail: user.email,
+          ip: context.ip,
+          userAgent: context.userAgent,
+          success: false,
+          error: 'Invalid current password',
+        });
+
+        throw new Error('Current password is incorrect');
+      }
+
+      // Validate new password
+      const validation = validateInput({ newPassword }, {
+        newPassword: {
+          required: true,
+          minLength: 8,
+          maxLength: 128,
+        },
+      });
+
+      if (!validation.valid) {
+        throw new Error(validation.errors.join(', '));
+      }
+
+      // Update password
+      user.password = newPassword;
+      await user.save();
+
+      // Invalidate all refresh tokens (force re-login on all devices)
+      user.refreshTokens = [];
+      await user.save();
+
+      await logAuthEvent({
+        operation: 'PASSWORD_CHANGE',
+        userId: user._id,
+        userEmail: user.email,
+        ip: context.ip,
+        userAgent: context.userAgent,
+        success: true,
+      });
+
+      return true;
+    },
+  },
+};

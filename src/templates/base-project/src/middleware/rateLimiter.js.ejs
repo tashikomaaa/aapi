@@ -1,0 +1,183 @@
+/**
+ * Rate Limiting Middleware
+ * Protects against DDoS and brute force attacks
+ */
+
+class RateLimiter {
+  constructor(options = {}) {
+    this.windowMs = options.windowMs || 15 * 60 * 1000; // 15 minutes
+    this.max = options.max || 100; // Max requests per window
+    this.message = options.message || 'Too many requests, please try again later';
+    this.skipSuccessfulRequests = options.skipSuccessfulRequests || false;
+    this.skipFailedRequests = options.skipFailedRequests || false;
+
+    // In-memory store (use Redis in production!)
+    this.store = new Map();
+
+    // Clean up old entries every minute
+    setInterval(() => this.cleanup(), 60 * 1000);
+  }
+
+  /**
+   * Get client identifier (IP or user ID)
+   * @param {Object} context - Request context
+   * @returns {string} Client identifier
+   */
+  getClientId(context) {
+    // Prefer authenticated user ID
+    if (context.user?.id) {
+      return `user:${context.user.id}`;
+    }
+
+    // Fall back to IP address
+    const ip =
+      context.request?.headers?.get('x-forwarded-for')?.split(',')[0] ||
+      context.request?.headers?.get('x-real-ip') ||
+      context.ip ||
+      'unknown';
+
+    return `ip:${ip}`;
+  }
+
+  /**
+   * Check if request should be rate limited
+   * @param {Object} context - Request context
+   * @returns {Object} { allowed: boolean, remaining: number, resetTime: number }
+   */
+  check(context) {
+    const clientId = this.getClientId(context);
+    const now = Date.now();
+    const windowStart = now - this.windowMs;
+
+    // Get or create client record
+    let clientRecord = this.store.get(clientId);
+
+    if (!clientRecord) {
+      clientRecord = {
+        requests: [],
+        firstRequest: now,
+      };
+      this.store.set(clientId, clientRecord);
+    }
+
+    // Filter out requests outside the window
+    clientRecord.requests = clientRecord.requests.filter(
+      (timestamp) => timestamp > windowStart
+    );
+
+    // Check if limit exceeded
+    const requestCount = clientRecord.requests.length;
+    const allowed = requestCount < this.max;
+
+    if (allowed) {
+      clientRecord.requests.push(now);
+    }
+
+    const remaining = Math.max(0, this.max - requestCount - (allowed ? 1 : 0));
+    const resetTime = clientRecord.requests[0]
+      ? clientRecord.requests[0] + this.windowMs
+      : now + this.windowMs;
+
+    return {
+      allowed,
+      remaining,
+      resetTime,
+      limit: this.max,
+    };
+  }
+
+  /**
+   * Clean up old entries
+   */
+  cleanup() {
+    const now = Date.now();
+    const cutoff = now - this.windowMs;
+
+    for (const [clientId, record] of this.store.entries()) {
+      record.requests = record.requests.filter((timestamp) => timestamp > cutoff);
+
+      if (record.requests.length === 0) {
+        this.store.delete(clientId);
+      }
+    }
+  }
+
+  /**
+   * GraphQL plugin for rate limiting
+   * @returns {Object} GraphQL Envelop plugin
+   */
+  graphqlPlugin() {
+    return {
+      onExecute: ({ args }) => {
+        const context = args.contextValue;
+        const result = this.check(context);
+
+        if (!result.allowed) {
+          throw new Error(this.message);
+        }
+
+        // Add rate limit info to context
+        context.rateLimit = result;
+      },
+    };
+  }
+}
+
+/**
+ * Create rate limiter instances for different use cases
+ */
+
+// General API rate limiter
+export const apiLimiter = new RateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per 15 minutes
+  message: 'Too many requests from this IP, please try again later',
+});
+
+// Strict rate limiter for auth endpoints
+export const authLimiter = new RateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per 15 minutes
+  message: 'Too many authentication attempts, please try again later',
+  skipSuccessfulRequests: true,
+});
+
+// Generous rate limiter for authenticated users
+export const authenticatedLimiter = new RateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // 1000 requests per 15 minutes for authenticated users
+});
+
+/**
+ * GraphQL middleware for rate limiting
+ * @param {Object} context - GraphQL context
+ * @param {string} type - Limiter type ('api', 'auth', 'authenticated')
+ * @returns {void}
+ * @throws {Error} If rate limit exceeded
+ */
+export function applyRateLimit(context, type = 'api') {
+  const limiters = {
+    api: apiLimiter,
+    auth: authLimiter,
+    authenticated: authenticatedLimiter,
+  };
+
+  const limiter = limiters[type] || apiLimiter;
+  const result = limiter.check(context);
+
+  if (!result.allowed) {
+    const error = new Error(limiter.message);
+    error.extensions = {
+      code: 'RATE_LIMIT_EXCEEDED',
+      limit: result.limit,
+      remaining: 0,
+      resetTime: result.resetTime,
+    };
+    throw error;
+  }
+
+  // Add rate limit info to context for headers
+  context.rateLimit = result;
+}
+
+export default RateLimiter;
