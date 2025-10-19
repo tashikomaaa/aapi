@@ -1,13 +1,12 @@
 import merge from 'lodash.merge';
 import path from 'path';
-import pkg from 'glob';
-const { glob } = pkg;
+import { globSync } from 'glob';
 import { pathToFileURL } from 'url';
 
 const cwd = path.resolve(process.cwd(), 'src', 'graphql', 'resolvers');
 
 // Récupère tous les fichiers *Resolver.js
-const resolverFiles = glob.sync('**/*Resolver.js', { cwd });
+const resolverFiles = globSync('**/*Resolver.js', { cwd });
 
 // Importe dynamiquement chaque resolver
 const resolversArray = [];

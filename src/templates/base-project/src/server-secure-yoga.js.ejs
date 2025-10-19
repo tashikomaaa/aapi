@@ -128,8 +128,9 @@ async function start() {
           version: process.env.npm_package_version || '1.0.0',
         };
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.setHeader('Content-Type', 'application/json');
         applySecurityHeaders(res, nodeEnv);
+        res.statusCode = 200;
         res.end(JSON.stringify(healthData));
         return;
       }
@@ -172,8 +173,9 @@ async function start() {
           ],
         };
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.setHeader('Content-Type', 'application/json');
         applySecurityHeaders(res, nodeEnv);
+        res.statusCode = 200;
         res.end(JSON.stringify(securityInfo, null, 2));
         return;
       }

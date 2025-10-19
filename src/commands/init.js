@@ -69,7 +69,7 @@ export default async function init(options = {}) {
       serverTemplate = 'src/server.js.ejs';
     }
 
-    const envTemplate = useSecure ? '.env.secure.example' : '.env.example';
+    const envTemplate = useSecure ? '.env.secure.example.ejs' : '.env.example.ejs';
 
     const aapiFiles = [
       { src: serverTemplate, dest: 'src/server.js', render: true },
@@ -90,7 +90,7 @@ export default async function init(options = {}) {
         dest: 'src/graphql/resolvers/index.js',
         render: true,
       },
-      { src: envTemplate, dest: '.env.example', render: false },
+      { src: envTemplate, dest: '.env.example', render: true },
       { src: '.gitignore', dest: '.gitignore', render: false },
       { src: '.editorconfig', dest: '.editorconfig', render: false },
       { src: 'README.md.ejs', dest: 'README.aapi.md', render: true }, // Don't overwrite README.md

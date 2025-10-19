@@ -109,21 +109,89 @@ export const corsOptions = {
 };
 
 /**
+ * Normalize getting headers from different request implementations
+ * Supports Node's IncomingMessage and Fetch API Request
+ * @param {IncomingMessage|Request} request
+ * @param {string} name
+ * @returns {string|undefined}
+ */
+function getRequestHeader(request, name) {
+  const headers = request?.headers;
+  if (!headers) return undefined;
+
+  if (typeof headers.get === 'function') {
+    return headers.get(name);
+  }
+
+  const key = name.toLowerCase();
+  if (typeof headers === 'object') {
+    return headers[key] ?? headers[name] ?? headers[name.toLowerCase()] ?? headers[name.toUpperCase()];
+  }
+
+  return undefined;
+}
+
+/**
+ * Set or remove a header on various response implementations
+ * Supports Fetch API Response and Node's ServerResponse
+ * @param {Response|ServerResponse} response
+ * @param {string} name
+ * @param {string|undefined|null} value
+ */
+function setResponseHeader(response, name, value) {
+  if (!response) return;
+
+  const shouldRemove = value === undefined || value === null || value === '';
+
+  // Skip if headers already sent on Node's ServerResponse
+  if (
+    typeof response.headersSent === 'boolean' &&
+    response.headersSent &&
+    !(response.headers && typeof response.headers.set === 'function')
+  ) {
+    return;
+  }
+
+  if (typeof response.writableEnded === 'boolean' && response.writableEnded) {
+    return;
+  }
+
+  if (response.headers && typeof response.headers.set === 'function') {
+    if (shouldRemove) {
+      response.headers.delete?.(name);
+    } else {
+      response.headers.set(name, value);
+    }
+    return;
+  }
+
+  if (typeof response.setHeader === 'function') {
+    if (shouldRemove) {
+      response.removeHeader?.(name);
+    } else {
+      response.setHeader(name, value);
+    }
+  }
+}
+
+/**
  * Apply security headers to response
  * @param {Response} response - HTTP response object
  * @param {string} env - Environment (development/production)
  * @returns {Response} Response with security headers
  */
 export function applySecurityHeaders(response, env = 'development') {
+  if (
+    (typeof response.headersSent === 'boolean' && response.headersSent) ||
+    (typeof response.writableEnded === 'boolean' && response.writableEnded)
+  ) {
+    return response;
+  }
+
   const headers = env === 'production' ? productionSecurityHeaders : securityHeaders;
 
   for (const [key, value] of Object.entries(headers)) {
-    if (value) {
-      response.headers.set(key, value);
-    } else {
-      // Remove header if value is empty
-      response.headers.delete(key);
-    }
+    setResponseHeader(response, key, value);
   }
 
   return response;
@@ -136,23 +204,26 @@ export function applySecurityHeaders(response, env = 'development') {
  * @returns {boolean} True if request handled, false to continue
  */
 export function handleCORS(request, response) {
-  const origin = request.headers.get('origin');
+  const origin = getRequestHeader(request, 'origin');
 
   // Check if origin is allowed
   const isAllowed = corsOptions.origin(origin);
 
   if (isAllowed) {
-    response.headers.set('Access-Control-Allow-Origin', origin || '*');
-    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    setResponseHeader(response, 'Access-Control-Allow-Origin', origin || '*');
+    setResponseHeader(response, 'Access-Control-Allow-Credentials', 'true');
   }
 
   // Handle preflight OPTIONS request
   if (request.method === 'OPTIONS') {
-    response.headers.set('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
-    response.headers.set('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
-    response.headers.set('Access-Control-Max-Age', corsOptions.maxAge.toString());
-    response.statusCode = 204;
-    response.end();
+    setResponseHeader(response, 'Access-Control-Allow-Methods', corsOptions.methods.join(', '));
+    setResponseHeader(response, 'Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
+    setResponseHeader(response, 'Access-Control-Max-Age', corsOptions.maxAge.toString());
+
+    if (typeof response.writeHead === 'function') {
+      response.statusCode = 204;
+      response.end();
+    }
     return true;
   }
 

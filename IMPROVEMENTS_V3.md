@@ -249,7 +249,7 @@ auditLogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 }
     - Security plugin setup
     - Health check endpoint
 
-11. **src/templates/base-project/.env.secure.example** (25 lines)
+11. **src/templates/base-project/.env.secure.example.ejs** (25 lines)
     - JWT secret configuration
     - Token expiry settings
     - CORS allowed origins
@@ -468,7 +468,7 @@ mutation RefreshToken {
 | AuthResolver.js.ejs          | 200       | Auth mutations           |
 | auth.graphql                 | 65        | Auth schema              |
 | server-secure-yoga.js.ejs    | 125       | Secure server            |
-| .env.secure.example          | 25        | Security config          |
+| .env.secure.example.ejs      | 25        | Security config          |
 | package-secure-yoga.json.ejs | 44        | Dependencies             |
 | **Total**                    | **1,673** | **Template code**        |
 

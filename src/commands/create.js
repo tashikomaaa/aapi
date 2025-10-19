@@ -61,7 +61,6 @@ export default async function create(projectName, options = {}) {
     await fs.ensureDir(targetDir);
 
     // Copy static files
-    await fs.copy(path.join(tplRoot, '.env.example'), path.join(targetDir, '.env.example'));
     await fs.copy(
       path.join(tplRoot, 'src', 'graphql', 'typeDefs', 'base.graphql'),
       path.join(targetDir, 'src', 'graphql', 'typeDefs', 'base.graphql')
@@ -124,11 +123,8 @@ export default async function create(projectName, options = {}) {
     await render(serverTemplate, path.join('src', 'server.js'));
 
     // Copy appropriate .env.example
-    const envTemplate = useSecure ? '.env.secure.example' : '.env.example';
-    const envSrc = path.join(tplRoot, envTemplate);
-    if (await fs.pathExists(envSrc)) {
-      await fs.copy(envSrc, path.join(targetDir, '.env.example'));
-    }
+    const envTemplate = useSecure ? '.env.secure.example.ejs' : '.env.example.ejs';
+    await render(envTemplate, '.env.example');
     await render(
       path.join('src', 'db', 'connection.js.ejs'),
       path.join('src', 'db', 'connection.js')
