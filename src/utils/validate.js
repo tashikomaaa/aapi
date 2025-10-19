@@ -6,30 +6,37 @@ import path from 'path';
  * @returns {{valid: boolean, error?: string}} Validation result
  */
 export function validateProjectName(name) {
-  if (!name || typeof name !== 'string') {
+  if (name === undefined || name === null) {
     return { valid: false, error: 'Project name is required' };
   }
 
+  if (typeof name !== 'string') {
+    return { valid: false, error: 'Project name must be a string' };
+  }
+
+  const trimmed = name.trim();
+
   // Check minimum length
-  if (name.length < 1) {
+  if (trimmed.length < 1) {
     return { valid: false, error: 'Project name cannot be empty' };
   }
 
   // Check maximum length (npm limit is 214 characters)
-  if (name.length > 214) {
+  if (trimmed.length > 214) {
     return { valid: false, error: 'Project name must be 214 characters or less' };
   }
 
   // Check for invalid characters (npm allows lowercase, digits, hyphens, underscores, dots)
-  if (!/^[a-z0-9._-]+$/.test(name)) {
+  if (!/^[a-z0-9._-]+$/.test(trimmed)) {
     return {
       valid: false,
-      error: 'Project name can only contain lowercase letters, numbers, hyphens, underscores, and dots',
+      error:
+        'Project name can only contain lowercase letters, numbers, hyphens, underscores, and dots',
     };
   }
 
   // Check if starts with dot or underscore (not recommended)
-  if (/^[._]/.test(name)) {
+  if (/^[._]/.test(trimmed)) {
     return { valid: false, error: 'Project name cannot start with a dot or underscore' };
   }
 
@@ -42,8 +49,8 @@ export function validateProjectName(name) {
     'package.json',
     'package-lock.json',
   ];
-  if (reservedNames.includes(name.toLowerCase())) {
-    return { valid: false, error: `"${name}" is a reserved name and cannot be used` };
+  if (reservedNames.includes(trimmed.toLowerCase())) {
+    return { valid: false, error: `"${trimmed}" is a reserved name and cannot be used` };
   }
 
   // Check for Node.js core modules
@@ -77,10 +84,10 @@ export function validateProjectName(name) {
     'vm',
     'zlib',
   ];
-  if (coreModules.includes(name.toLowerCase())) {
+  if (coreModules.includes(trimmed.toLowerCase())) {
     return {
       valid: false,
-      error: `"${name}" conflicts with a Node.js core module name`,
+      error: `"${trimmed}" conflicts with a Node.js core module name`,
     };
   }
 
@@ -93,25 +100,32 @@ export function validateProjectName(name) {
  * @returns {{valid: boolean, error?: string}} Validation result
  */
 export function validateModelName(name) {
-  if (!name || typeof name !== 'string') {
+  if (name === undefined || name === null) {
     return { valid: false, error: 'Model name is required' };
   }
 
+  if (typeof name !== 'string') {
+    return { valid: false, error: 'Model name must be a string' };
+  }
+
+  const trimmed = name.trim();
+
   // Check minimum length
-  if (name.length < 1) {
+  if (trimmed.length < 1) {
     return { valid: false, error: 'Model name cannot be empty' };
   }
 
   // Check maximum length (reasonable limit for identifiers)
-  if (name.length > 100) {
+  if (trimmed.length > 100) {
     return { valid: false, error: 'Model name must be 100 characters or less' };
   }
 
   // Check for valid JavaScript identifier characters
-  if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) {
+  if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(trimmed)) {
     return {
       valid: false,
-      error: 'Model name must be a valid JavaScript identifier (letters, numbers, underscore, dollar sign)',
+      error:
+        'Model name must be a valid JavaScript identifier (letters, numbers, underscore, dollar sign)',
     };
   }
 
@@ -161,10 +175,10 @@ export function validateModelName(name) {
     'protected',
     'public',
   ];
-  if (reservedKeywords.includes(name.toLowerCase())) {
+  if (reservedKeywords.includes(trimmed.toLowerCase())) {
     return {
       valid: false,
-      error: `"${name}" is a JavaScript reserved keyword and cannot be used`,
+      error: `"${trimmed}" is a JavaScript reserved keyword and cannot be used`,
     };
   }
 
@@ -177,6 +191,11 @@ export function validateModelName(name) {
  * @returns {string} Sanitized name (basename only)
  */
 export function sanitizePath(name) {
+  if (typeof name !== 'string') {
+    return '';
+  }
+
   // Use path.basename to strip any directory components
-  return path.basename(name);
+  const normalized = name.replace(/\\/g, '/');
+  return path.basename(normalized);
 }
