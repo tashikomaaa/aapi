@@ -17,13 +17,6 @@ type <%= Name %>Connection {
   pageInfo: PageInfo!
 }
 
-type PageInfo {
-  page: Int!
-  limit: Int!
-  total: Int!
-  hasMore: Boolean!
-}
-
 input <%= Name %>Filter {
   name: String
 <% if (relations && relations.length > 0) { %>
@@ -69,3 +62,11 @@ type Mutation {
   update<%= Name %>(id: ID!, input: Update<%= Name %>Input!): <%= Name %>
   delete<%= Name %>(id: ID!): Boolean!
 }
+
+<% if (withSubscriptions) { %>
+type Subscription {
+  <%= name %>Created: <%= Name %>!
+  <%= name %>Updated: <%= Name %>!
+  <%= name %>Deleted: <%= Name %>!
+}
+<% } %>

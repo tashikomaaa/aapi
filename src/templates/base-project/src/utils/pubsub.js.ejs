@@ -1,0 +1,153 @@
+/**
+ * PubSub utility for GraphQL subscriptions
+ * Supports both in-memory and Redis PubSub
+ * @module utils/pubsub
+ */
+
+import { PubSub } from 'graphql-yoga';
+
+let pubsub = null;
+
+/**
+ * Initialize PubSub system
+ * Uses Redis if available, otherwise in-memory
+ * @returns {PubSub} PubSub instance
+ */
+export function initPubSub() {
+  if (pubsub) {
+    return pubsub;
+  }
+
+  // Check if Redis is configured for production
+  if (process.env.REDIS_URL || process.env.REDIS_HOST) {
+    try {
+      // Try to use Redis PubSub for production (scales across instances)
+      const { createRedisEventTarget } = require('@graphql-yoga/redis-event-target');
+      const redis = require('redis');
+
+      const publishClient = redis.createClient({
+        url:
+          process.env.REDIS_URL ||
+          `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,
+      });
+
+      const subscribeClient = publishClient.duplicate();
+
+      Promise.all([publishClient.connect(), subscribeClient.connect()])
+        .then(() => {
+          console.log('✓ Redis PubSub connected');
+        })
+        .catch((err) => {
+          console.error('Redis PubSub connection error:', err);
+          console.warn('⚠️  Falling back to in-memory PubSub');
+        });
+
+      const eventTarget = createRedisEventTarget({
+        publishClient,
+        subscribeClient,
+      });
+
+      pubsub = new PubSub({ eventTarget });
+    } catch (err) {
+      console.warn('⚠️  Redis not available for PubSub, using in-memory');
+      pubsub = new PubSub();
+    }
+  } else {
+    // Development mode - use in-memory PubSub
+    pubsub = new PubSub();
+    console.log('✓ Using in-memory PubSub');
+  }
+
+  return pubsub;
+}
+
+/**
+ * Get PubSub instance
+ * @returns {PubSub} PubSub instance
+ */
+export function getPubSub() {
+  if (!pubsub) {
+    return initPubSub();
+  }
+  return pubsub;
+}
+
+/**
+ * Event types for common operations
+ */
+export const Events = {
+  // Generic CRUD events (use with model name)
+  CREATED: 'CREATED',
+  UPDATED: 'UPDATED',
+  DELETED: 'DELETED',
+
+  // User events
+  USER_CREATED: 'USER_CREATED',
+  USER_UPDATED: 'USER_UPDATED',
+  USER_DELETED: 'USER_DELETED',
+
+  // Custom events - add your own here
+  NOTIFICATION: 'NOTIFICATION',
+  MESSAGE: 'MESSAGE',
+};
+
+/**
+ * Publish an event
+ * @param {string} event - Event name
+ * @param {any} payload - Event payload
+ * @returns {Promise<void>}
+ */
+export async function publish(event, payload) {
+  const ps = getPubSub();
+  await ps.publish(event, payload);
+}
+
+/**
+ * Subscribe to an event
+ * @param {string} event - Event name
+ * @returns {AsyncIterator} Event iterator
+ */
+export function subscribe(event) {
+  const ps = getPubSub();
+  return ps.subscribe(event);
+}
+
+/**
+ * Helper to publish model creation event
+ * @param {string} modelName - Model name (e.g., "User", "Post")
+ * @param {Object} data - Created data
+ * @returns {Promise<void>}
+ */
+export async function publishCreated(modelName, data) {
+  await publish(`${modelName.toUpperCase()}_CREATED`, data);
+}
+
+/**
+ * Helper to publish model update event
+ * @param {string} modelName - Model name
+ * @param {Object} data - Updated data
+ * @returns {Promise<void>}
+ */
+export async function publishUpdated(modelName, data) {
+  await publish(`${modelName.toUpperCase()}_UPDATED`, data);
+}
+
+/**
+ * Helper to publish model deletion event
+ * @param {string} modelName - Model name
+ * @param {string} id - Deleted item ID
+ * @returns {Promise<void>}
+ */
+export async function publishDeleted(modelName, id) {
+  await publish(`${modelName.toUpperCase()}_DELETED`, { _id: id });
+}
+
+/**
+ * Close PubSub connections
+ * @returns {Promise<void>}
+ */
+export async function closePubSub() {
+  // GraphQL Yoga PubSub doesn't need explicit cleanup
+  // But if using Redis, connections are managed by cache utility
+  pubsub = null;
+}

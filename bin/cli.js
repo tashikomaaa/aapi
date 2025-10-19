@@ -46,6 +46,16 @@ program
   .command('generate <type> <name>')
   .description('Generate code (e.g., model <Name>)')
   .option('-f, --force', 'Overwrite existing files if they exist')
+  .option(
+    '-r, --relations <relations>',
+    'Define relations (e.g., "author:User,comments:[Comment]")'
+  )
+  .option('-p, --with-pagination', 'Enable pagination, filtering, and sorting')
+  .option('-c, --cascade-delete', 'Enable cascade delete for one-to-many relations')
+  .option('-s, --with-subscriptions', 'Enable GraphQL subscriptions (real-time)')
+  .option('--with-cache', 'Enable caching for queries')
+  .option('--cache-ttl <seconds>', 'Cache TTL in seconds (default: 300)', parseInt)
+  .option('--no-tests', 'Skip generating test files')
   .action((type, name, options) => generate(type, name, options));
 
 program.command('list').description('List all models in the current project').action(list);

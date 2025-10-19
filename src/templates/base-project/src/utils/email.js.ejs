@@ -1,0 +1,256 @@
+/**
+ * Email utility with Nodemailer and template support
+ * @module utils/email
+ */
+
+import nodemailer from 'nodemailer';
+import ejs from 'ejs';
+import path from 'path';
+import fs from 'fs/promises';
+
+let transporter = null;
+
+/**
+ * Initialize email transporter
+ * @returns {Object} Nodemailer transporter
+ */
+export function initEmailTransporter() {
+  if (transporter) {
+    return transporter;
+  }
+
+  const emailConfig = {
+    // SMTP configuration
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  };
+
+  // Use different transporter for development (preview emails in browser)
+  if (process.env.NODE_ENV === 'development' && !process.env.SMTP_USER) {
+    console.log('⚠️  SMTP not configured, using Ethereal for email testing');
+    console.log('   Visit https://ethereal.email to get test credentials');
+
+    // Create test account (async, but we'll use a promise)
+    return nodemailer.createTestAccount().then((testAccount) => {
+      transporter = nodemailer.createTransporter({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+
+      console.log(`✓ Test email account created: ${testAccount.user}`);
+      return transporter;
+    });
+  }
+
+  transporter = nodemailer.createTransporter(emailConfig);
+
+  // Verify connection
+  transporter.verify((error, success) => {
+    if (error) {
+      console.error('Email transporter error:', error);
+    } else {
+      console.log('✓ Email server ready');
+    }
+  });
+
+  return transporter;
+}
+
+/**
+ * Get email transporter
+ * @returns {Promise<Object>} Nodemailer transporter
+ */
+export async function getEmailTransporter() {
+  if (!transporter) {
+    transporter = await initEmailTransporter();
+  }
+  return transporter;
+}
+
+/**
+ * Render email template
+ * @param {string} templateName - Template filename (without .ejs extension)
+ * @param {Object} data - Template data
+ * @returns {Promise<string>} Rendered HTML
+ */
+export async function renderEmailTemplate(templateName, data = {}) {
+  const templatePath = path.join(
+    process.cwd(),
+    'src',
+    'emails',
+    'templates',
+    `${templateName}.ejs`
+  );
+
+  try {
+    const template = await fs.readFile(templatePath, 'utf-8');
+    return ejs.render(template, {
+      appName: process.env.APP_NAME || '<%= projectName %>',
+      appUrl: process.env.APP_URL || 'http://localhost:4000',
+      ...data,
+    });
+  } catch (err) {
+    console.error(`Error rendering email template ${templateName}:`, err);
+    throw new Error(`Email template not found: ${templateName}`);
+  }
+}
+
+/**
+ * Send email
+ * @param {Object} options - Email options
+ * @param {string|Array} options.to - Recipient email(s)
+ * @param {string} options.subject - Email subject
+ * @param {string} options.html - HTML content
+ * @param {string} options.text - Plain text content (optional)
+ * @param {string} options.from - Sender email (optional)
+ * @returns {Promise<Object>} Send result
+ */
+export async function sendEmail(options) {
+  const transport = await getEmailTransporter();
+
+  const mailOptions = {
+    from: options.from || process.env.EMAIL_FROM || 'noreply@<%= projectName %>.com',
+    to: options.to,
+    subject: options.subject,
+    html: options.html,
+    text: options.text || '', // Fallback to plain text
+  };
+
+  try {
+    const info = await transport.sendMail(mailOptions);
+
+    // Log preview URL for test accounts (Ethereal)
+    if (process.env.NODE_ENV === 'development' && !process.env.SMTP_USER) {
+      console.log('📧 Email sent:', nodemailer.getTestMessageUrl(info));
+    }
+
+    return {
+      success: true,
+      messageId: info.messageId,
+      previewUrl: nodemailer.getTestMessageUrl(info), // Only for Ethereal
+    };
+  } catch (err) {
+    console.error('Send email error:', err);
+    throw new Error(`Failed to send email: ${err.message}`);
+  }
+}
+
+/**
+ * Send templated email
+ * @param {Object} options - Email options
+ * @param {string|Array} options.to - Recipient email(s)
+ * @param {string} options.subject - Email subject
+ * @param {string} options.template - Template name
+ * @param {Object} options.data - Template data
+ * @returns {Promise<Object>} Send result
+ */
+export async function sendTemplatedEmail(options) {
+  const { to, subject, template, data = {} } = options;
+
+  const html = await renderEmailTemplate(template, data);
+
+  return sendEmail({
+    to,
+    subject,
+    html,
+  });
+}
+
+/**
+ * Send welcome email
+ * @param {Object} user - User object
+ * @returns {Promise<Object>} Send result
+ */
+export async function sendWelcomeEmail(user) {
+  return sendTemplatedEmail({
+    to: user.email,
+    subject: 'Welcome to <%= projectName %>!',
+    template: 'welcome',
+    data: {
+      userName: user.firstName || user.name || 'there',
+      loginUrl: `${process.env.APP_URL}/login`,
+    },
+  });
+}
+
+/**
+ * Send password reset email
+ * @param {Object} user - User object
+ * @param {string} resetToken - Password reset token
+ * @returns {Promise<Object>} Send result
+ */
+export async function sendPasswordResetEmail(user, resetToken) {
+  const resetUrl = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
+
+  return sendTemplatedEmail({
+    to: user.email,
+    subject: 'Password Reset Request',
+    template: 'password-reset',
+    data: {
+      userName: user.firstName || user.name || 'there',
+      resetUrl,
+      expiryTime: '1 hour',
+    },
+  });
+}
+
+/**
+ * Send email verification email
+ * @param {Object} user - User object
+ * @param {string} verificationToken - Email verification token
+ * @returns {Promise<Object>} Send result
+ */
+export async function sendEmailVerification(user, verificationToken) {
+  const verifyUrl = `${process.env.APP_URL}/verify-email?token=${verificationToken}`;
+
+  return sendTemplatedEmail({
+    to: user.email,
+    subject: 'Verify Your Email Address',
+    template: 'email-verification',
+    data: {
+      userName: user.firstName || user.name || 'there',
+      verifyUrl,
+    },
+  });
+}
+
+/**
+ * Send notification email
+ * @param {Object} user - User object
+ * @param {string} title - Notification title
+ * @param {string} message - Notification message
+ * @returns {Promise<Object>} Send result
+ */
+export async function sendNotificationEmail(user, title, message) {
+  return sendTemplatedEmail({
+    to: user.email,
+    subject: title,
+    template: 'notification',
+    data: {
+      userName: user.firstName || user.name || 'there',
+      title,
+      message,
+    },
+  });
+}
+
+/**
+ * Close email transporter
+ * @returns {void}
+ */
+export function closeEmailTransporter() {
+  if (transporter) {
+    transporter.close();
+    transporter = null;
+  }
+}

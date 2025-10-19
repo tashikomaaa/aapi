@@ -1,11 +1,39 @@
 import mongoose from 'mongoose';
 
-const <%= Name %>Schema = new mongoose.Schema(
-    {
+const <%= name %>Schema = new mongoose.Schema(
+  {
     name: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now }
-    },
-    { timestamps: true }
-    );
+<% if (relations && relations.length > 0) { %>
+    // Relations
+<% relations.forEach(function(relation) { %>
+    <%= relation.mongooseField %>
+<% }); %>
+<% } %>
+  },
+  { timestamps: true }
+);
 
-    export default mongoose.models.<%= Name %> || mongoose.model('<%= Name %>', <%= Name %>Schema);
+<% if (relations && relations.length > 0) { %>
+// Virtual populate for reverse relations (optional)
+// Uncomment if needed for reverse lookups
+<% relations.forEach(function(relation) { %>
+// <%= name %>Schema.virtual('<%= relation.fieldName %>Data', {
+//   ref: '<%= relation.modelName %>',
+//   localField: '<%= relation.fieldName %>',
+//   foreignField: '_id',
+// });
+<% }); %>
+
+<% } %>
+<% if (enableCascadeDelete && relations && relations.some(r => r.relationType === 'one-to-many')) { %>
+// Cascade delete related documents
+<%= name %>Schema.pre('remove', async function (next) {
+<% relations.filter(r => r.relationType === 'one-to-many').forEach(function(relation) { %>
+  // Delete related <%= relation.modelName %> documents
+  await mongoose.model('<%= relation.modelName %>').deleteMany({ _id: { $in: this.<%= relation.fieldName %> } });
+<% }); %>
+  next();
+});
+
+<% } %>
+export default mongoose.models.<%= Name %> || mongoose.model('<%= Name %>', <%= name %>Schema);

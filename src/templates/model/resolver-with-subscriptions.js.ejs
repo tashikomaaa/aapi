@@ -1,0 +1,177 @@
+import <%= Name %> from '../../models/<%= Name %>.js';
+<% if (withSubscriptions) { %>
+import { publishCreated, publishUpdated, publishDeleted, subscribe } from '../../utils/pubsub.js';
+<% } %>
+<% if (withCache) { %>
+import { cacheResolver, invalidateModel } from '../../utils/cache.js';
+<% } %>
+
+<% if (withCache) { %>
+// Cache configuration
+const CACHE_TTL = <%= cacheTTL || 300 %>; // seconds
+
+<% } %>
+const resolvers = {
+  Query: {
+    <%= name %>s: <% if (withCache) { %>cacheResolver(<% } %>async (_, args) => {
+<% if (withPagination) { %>
+      const { page = 1, limit = 10, sort = '-createdAt', filter = {} } = args;
+
+      // Build filter query
+      const query = {};
+      if (filter.name) {
+        query.name = { $regex: filter.name, $options: 'i' };
+      }
+<% if (relations && relations.length > 0) { %>
+      // Relation filters
+<% relations.forEach(function(relation) { %>
+      if (filter.<%= relation.fieldName %>Id) {
+        query.<%= relation.fieldName %> = filter.<%= relation.fieldName %>Id;
+      }
+<% }); %>
+<% } %>
+
+      // Calculate pagination
+      const skip = (page - 1) * limit;
+
+      // Execute query with pagination
+      const [items, total] = await Promise.all([
+        <%= Name %>.find(query)
+          .sort(sort)
+          .skip(skip)
+          .limit(limit)<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>
+          .lean(),
+        <%= Name %>.countDocuments(query),
+      ]);
+
+      return {
+        items,
+        pageInfo: {
+          page,
+          limit,
+          total,
+          hasMore: skip + items.length < total,
+        },
+      };
+<% } else { %>
+      return <%= Name %>.find()<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>.lean();
+<% } %>
+    }<% if (withCache) { %>, {
+      typename: '<%= Name %>',
+      operation: 'list',
+      ttl: CACHE_TTL,
+    })<% } %>,
+
+    <%= name %>: <% if (withCache) { %>cacheResolver(<% } %>async (_, { id }) =>
+      <%= Name %>.findById(id)<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>.lean()<% if (withCache) { %>, {
+      typename: '<%= Name %>',
+      operation: 'get',
+      ttl: CACHE_TTL,
+    })<% } %>,
+  },
+
+  Mutation: {
+    create<%= Name %>: async (_, { input }) => {
+<% if (relations && relations.length > 0) { %>
+      // Handle relation IDs
+      const data = {
+        ...input,
+<% relations.forEach(function(relation) { %>
+        <%= relation.fieldName %>: input.<%= relation.isArray ? relation.fieldName + 'Ids' : relation.fieldName + 'Id' %>,
+<% }); %>
+      };
+      // Remove ID fields from input
+<% relations.forEach(function(relation) { %>
+      delete data.<%= relation.isArray ? relation.fieldName + 'Ids' : relation.fieldName + 'Id' %>;
+<% }); %>
+
+      const result = await <%= Name %>.create(data);
+<% } else { %>
+      const result = await <%= Name %>.create(input);
+<% } %>
+<% if (withCache) { %>
+
+      // Invalidate cache
+      await invalidateModel('<%= Name %>');
+<% } %>
+<% if (withSubscriptions) { %>
+
+      // Publish subscription event
+      await publishCreated('<%= Name %>', result);
+<% } %>
+
+      return result;
+    },
+
+    update<%= Name %>: async (_, { id, input }) => {
+<% if (relations && relations.length > 0) { %>
+      // Handle relation IDs
+      const data = {
+        ...input,
+<% relations.forEach(function(relation) { %>
+        <%= relation.fieldName %>: input.<%= relation.isArray ? relation.fieldName + 'Ids' : relation.fieldName + 'Id' %>,
+<% }); %>
+      };
+      // Remove ID fields from input
+<% relations.forEach(function(relation) { %>
+      delete data.<%= relation.isArray ? relation.fieldName + 'Ids' : relation.fieldName + 'Id' %>;
+<% }); %>
+
+      const result = await <%= Name %>.findByIdAndUpdate(id, data, { new: true, lean: true });
+<% } else { %>
+      const result = await <%= Name %>.findByIdAndUpdate(id, input, { new: true, lean: true });
+<% } %>
+<% if (withCache) { %>
+
+      // Invalidate cache
+      await invalidateModel('<%= Name %>');
+<% } %>
+<% if (withSubscriptions) { %>
+
+      // Publish subscription event
+      await publishUpdated('<%= Name %>', result);
+<% } %>
+
+      return result;
+    },
+
+    delete<%= Name %>: async (_, { id }) => {
+      const result = !!(await <%= Name %>.findByIdAndDelete(id));
+<% if (withCache) { %>
+
+      // Invalidate cache
+      if (result) {
+        await invalidateModel('<%= Name %>');
+      }
+<% } %>
+<% if (withSubscriptions) { %>
+
+      // Publish subscription event
+      if (result) {
+        await publishDeleted('<%= Name %>', id);
+      }
+<% } %>
+
+      return result;
+    },
+  },
+<% if (withSubscriptions) { %>
+
+  Subscription: {
+    <%= name %>Created: {
+      subscribe: () => subscribe('<%= Name.toUpperCase() %>_CREATED'),
+      resolve: (payload) => payload,
+    },
+    <%= name %>Updated: {
+      subscribe: () => subscribe('<%= Name.toUpperCase() %>_UPDATED'),
+      resolve: (payload) => payload,
+    },
+    <%= name %>Deleted: {
+      subscribe: () => subscribe('<%= Name.toUpperCase() %>_DELETED'),
+      resolve: (payload) => payload,
+    },
+  },
+<% } %>
+};
+
+export default resolvers;

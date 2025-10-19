@@ -1,0 +1,315 @@
+/**
+ * File upload utility with local and cloud storage support
+ * @module utils/upload
+ */
+
+import path from 'path';
+import fs from 'fs/promises';
+import crypto from 'crypto';
+
+/**
+ * Allowed file types by category
+ */
+export const FileTypes = {
+  IMAGES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+  DOCUMENTS: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ],
+  VIDEOS: ['video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo'],
+  AUDIO: ['audio/mpeg', 'audio/wav', 'audio/ogg'],
+  ALL: [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'video/mp4',
+    'video/mpeg',
+    'video/quicktime',
+    'video/x-msvideo',
+    'audio/mpeg',
+    'audio/wav',
+    'audio/ogg',
+  ],
+};
+
+/**
+ * Get upload directory
+ * @returns {string} Upload directory path
+ */
+function getUploadDir() {
+  return process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
+}
+
+/**
+ * Ensure upload directory exists
+ * @returns {Promise<void>}
+ */
+export async function ensureUploadDir() {
+  const uploadDir = getUploadDir();
+  await fs.mkdir(uploadDir, { recursive: true });
+}
+
+/**
+ * Generate unique filename
+ * @param {string} originalName - Original filename
+ * @returns {string} Unique filename
+ */
+export function generateUniqueFilename(originalName) {
+  const ext = path.extname(originalName);
+  const hash = crypto.randomBytes(16).toString('hex');
+  const timestamp = Date.now();
+  return `${timestamp}-${hash}${ext}`;
+}
+
+/**
+ * Validate file type
+ * @param {string} mimetype - File MIME type
+ * @param {Array<string>} allowedTypes - Allowed MIME types
+ * @returns {boolean} Valid or not
+ */
+export function validateFileType(mimetype, allowedTypes = FileTypes.ALL) {
+  return allowedTypes.includes(mimetype);
+}
+
+/**
+ * Validate file size
+ * @param {number} size - File size in bytes
+ * @param {number} maxSize - Max size in bytes (default: 10MB)
+ * @returns {boolean} Valid or not
+ */
+export function validateFileSize(size, maxSize = 10 * 1024 * 1024) {
+  return size <= maxSize;
+}
+
+/**
+ * Save file to local storage
+ * @param {Object} file - File object from GraphQL upload
+ * @param {Object} options - Upload options
+ * @param {Array<string>} options.allowedTypes - Allowed MIME types
+ * @param {number} options.maxSize - Max file size in bytes
+ * @returns {Promise<Object>} Upload result
+ */
+export async function saveFile(file, options = {}) {
+  const { allowedTypes = FileTypes.ALL, maxSize = 10 * 1024 * 1024 } = options;
+
+  // Get file stream and metadata
+  const { createReadStream, filename, mimetype, encoding } = await file;
+
+  // Validate file type
+  if (!validateFileType(mimetype, allowedTypes)) {
+    throw new Error(`File type not allowed: ${mimetype}`);
+  }
+
+  // Generate unique filename
+  const uniqueFilename = generateUniqueFilename(filename);
+  const uploadDir = getUploadDir();
+  const filepath = path.join(uploadDir, uniqueFilename);
+
+  // Ensure upload directory exists
+  await ensureUploadDir();
+
+  // Stream file to disk
+  const stream = createReadStream();
+  const writeStream = (await import('fs')).createWriteStream(filepath);
+
+  let size = 0;
+
+  // Track file size while streaming
+  await new Promise((resolve, reject) => {
+    stream.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxSize) {
+        stream.destroy();
+        writeStream.destroy();
+        reject(new Error(`File size exceeds limit: ${maxSize} bytes`));
+      }
+    });
+
+    stream.on('error', (error) => {
+      writeStream.destroy();
+      reject(error);
+    });
+
+    writeStream.on('error', (error) => {
+      reject(error);
+    });
+
+    writeStream.on('finish', () => {
+      resolve();
+    });
+
+    stream.pipe(writeStream);
+  });
+
+  // Return file metadata
+  return {
+    filename: uniqueFilename,
+    originalName: filename,
+    mimetype,
+    encoding,
+    size,
+    path: filepath,
+    url: `/uploads/${uniqueFilename}`, // Relative URL
+  };
+}
+
+/**
+ * Delete file from local storage
+ * @param {string} filename - Filename to delete
+ * @returns {Promise<boolean>} Success status
+ */
+export async function deleteFile(filename) {
+  try {
+    const filepath = path.join(getUploadDir(), filename);
+    await fs.unlink(filepath);
+    return true;
+  } catch (err) {
+    console.error('Delete file error:', err);
+    return false;
+  }
+}
+
+/**
+ * Get file URL
+ * @param {string} filename - Filename
+ * @returns {string} File URL
+ */
+export function getFileUrl(filename) {
+  const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+  return `${baseUrl}/uploads/${filename}`;
+}
+
+/**
+ * Upload to S3 (requires aws-sdk)
+ * @param {Object} file - File object from GraphQL upload
+ * @param {Object} options - S3 upload options
+ * @returns {Promise<Object>} S3 upload result
+ */
+export async function uploadToS3(file, options = {}) {
+  // This requires AWS SDK to be installed
+  // npm install @aws-sdk/client-s3 @aws-sdk/lib-storage
+
+  const { bucket = process.env.S3_BUCKET, region = process.env.AWS_REGION } = options;
+
+  if (!bucket) {
+    throw new Error('S3_BUCKET environment variable is required');
+  }
+
+  try {
+    const { S3Client } = await import('@aws-sdk/client-s3');
+    const { Upload } = await import('@aws-sdk/lib-storage');
+
+    const s3Client = new S3Client({ region });
+
+    const { createReadStream, filename, mimetype } = await file;
+    const uniqueFilename = generateUniqueFilename(filename);
+
+    const upload = new Upload({
+      client: s3Client,
+      params: {
+        Bucket: bucket,
+        Key: uniqueFilename,
+        Body: createReadStream(),
+        ContentType: mimetype,
+      },
+    });
+
+    const result = await upload.done();
+
+    return {
+      filename: uniqueFilename,
+      originalName: filename,
+      mimetype,
+      url: result.Location,
+      bucket,
+      key: uniqueFilename,
+    };
+  } catch (err) {
+    if (err.code === 'ERR_MODULE_NOT_FOUND') {
+      throw new Error('AWS SDK not installed. Run: npm install @aws-sdk/client-s3 @aws-sdk/lib-storage');
+    }
+    throw err;
+  }
+}
+
+/**
+ * Delete file from S3
+ * @param {string} filename - Filename to delete
+ * @param {Object} options - S3 options
+ * @returns {Promise<boolean>} Success status
+ */
+export async function deleteFromS3(filename, options = {}) {
+  const { bucket = process.env.S3_BUCKET, region = process.env.AWS_REGION } = options;
+
+  try {
+    const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+
+    const s3Client = new S3Client({ region });
+
+    await s3Client.send(
+      new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: filename,
+      })
+    );
+
+    return true;
+  } catch (err) {
+    console.error('Delete from S3 error:', err);
+    return false;
+  }
+}
+
+/**
+ * Get file extension from MIME type
+ * @param {string} mimetype - MIME type
+ * @returns {string} File extension
+ */
+export function getExtensionFromMimetype(mimetype) {
+  const extensions = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'image/svg+xml': '.svg',
+    'application/pdf': '.pdf',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'video/mp4': '.mp4',
+    'video/mpeg': '.mpeg',
+    'video/quicktime': '.mov',
+    'video/x-msvideo': '.avi',
+    'audio/mpeg': '.mp3',
+    'audio/wav': '.wav',
+    'audio/ogg': '.ogg',
+  };
+
+  return extensions[mimetype] || '';
+}
+
+/**
+ * Format file size for display
+ * @param {number} bytes - File size in bytes
+ * @returns {string} Formatted size
+ */
+export function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}

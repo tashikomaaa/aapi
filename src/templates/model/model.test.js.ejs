@@ -1,0 +1,249 @@
+/**
+ * Tests for <%= Name %> model and resolvers
+ */
+
+import { describe, it, expect, beforeEach } from '@jest/globals';
+import <%= Name %> from '../../models/<%= Name %>.js';
+import resolvers from '../../graphql/resolvers/<%= Name %>Resolver.js';
+
+describe('<%= Name %> Model', () => {
+  beforeEach(async () => {
+    // Clean up database before each test
+    await <%= Name %>.deleteMany({});
+  });
+
+  describe('Model validation', () => {
+    it('should create a valid <%= name %>', async () => {
+      const <%= name %>Data = {
+        name: 'Test <%= Name %>',
+<% if (relations && relations.length > 0) { %>
+        // Add relation IDs here when testing with relations
+<% } %>
+      };
+
+      const <%= name %> = new <%= Name %>(<%= name %>Data);
+      const saved<%= Name %> = await <%= name %>.save();
+
+      expect(saved<%= Name %>._id).toBeDefined();
+      expect(saved<%= Name %>.name).toBe(<%= name %>Data.name);
+      expect(saved<%= Name %>.createdAt).toBeDefined();
+      expect(saved<%= Name %>.updatedAt).toBeDefined();
+    });
+
+    it('should fail without required fields', async () => {
+      const <%= name %> = new <%= Name %>({});
+
+      await expect(<%= name %>.save()).rejects.toThrow();
+    });
+
+    it('should have timestamps', async () => {
+      const <%= name %> = new <%= Name %>({ name: 'Test' });
+      const saved = await <%= name %>.save();
+
+      expect(saved.createdAt).toBeInstanceOf(Date);
+      expect(saved.updatedAt).toBeInstanceOf(Date);
+    });
+  });
+});
+
+describe('<%= Name %> Resolvers', () => {
+  beforeEach(async () => {
+    await <%= Name %>.deleteMany({});
+  });
+
+  describe('Query.<%= name %>s', () => {
+    it('should return empty array when no <%= name %>s exist', async () => {
+<% if (withPagination) { %>
+      const result = await resolvers.Query.<%= name %>s(null, {});
+
+      expect(result.items).toEqual([]);
+      expect(result.pageInfo.total).toBe(0);
+<% } else { %>
+      const result = await resolvers.Query.<%= name %>s(null, {});
+
+      expect(result).toEqual([]);
+<% } %>
+    });
+
+    it('should return all <%= name %>s', async () => {
+      // Create test data
+      await <%= Name %>.create([
+        { name: 'Test 1' },
+        { name: 'Test 2' },
+        { name: 'Test 3' },
+      ]);
+
+<% if (withPagination) { %>
+      const result = await resolvers.Query.<%= name %>s(null, {});
+
+      expect(result.items).toHaveLength(3);
+      expect(result.pageInfo.total).toBe(3);
+<% } else { %>
+      const result = await resolvers.Query.<%= name %>s(null, {});
+
+      expect(result).toHaveLength(3);
+<% } %>
+    });
+
+<% if (withPagination) { %>
+    it('should support pagination', async () => {
+      // Create 15 test items
+      const items = Array.from({ length: 15 }, (_, i) => ({
+        name: `Test ${i + 1}`,
+      }));
+      await <%= Name %>.create(items);
+
+      // Get first page
+      const page1 = await resolvers.Query.<%= name %>s(null, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(page1.items).toHaveLength(10);
+      expect(page1.pageInfo.page).toBe(1);
+      expect(page1.pageInfo.total).toBe(15);
+      expect(page1.pageInfo.hasMore).toBe(true);
+
+      // Get second page
+      const page2 = await resolvers.Query.<%= name %>s(null, {
+        page: 2,
+        limit: 10,
+      });
+
+      expect(page2.items).toHaveLength(5);
+      expect(page2.pageInfo.hasMore).toBe(false);
+    });
+
+    it('should support filtering', async () => {
+      await <%= Name %>.create([
+        { name: 'Apple' },
+        { name: 'Banana' },
+        { name: 'Apricot' },
+      ]);
+
+      const result = await resolvers.Query.<%= name %>s(null, {
+        filter: { name: 'Ap' },
+      });
+
+      expect(result.items).toHaveLength(2);
+      expect(result.items.every((item) => item.name.startsWith('Ap'))).toBe(true);
+    });
+
+    it('should support sorting', async () => {
+      await <%= Name %>.create([
+        { name: 'Zebra' },
+        { name: 'Apple' },
+        { name: 'Mango' },
+      ]);
+
+      const result = await resolvers.Query.<%= name %>s(null, {
+        sort: 'name',
+      });
+
+      expect(result.items[0].name).toBe('Apple');
+      expect(result.items[2].name).toBe('Zebra');
+    });
+<% } %>
+  });
+
+  describe('Query.<%= name %>', () => {
+    it('should return <%= name %> by id', async () => {
+      const created = await <%= Name %>.create({ name: 'Test' });
+
+      const result = await resolvers.Query.<%= name %>(null, {
+        id: created._id.toString(),
+      });
+
+      expect(result).toBeDefined();
+      expect(result.name).toBe('Test');
+    });
+
+    it('should return null for non-existent id', async () => {
+      const result = await resolvers.Query.<%= name %>(null, {
+        id: '507f1f77bcf86cd799439011', // Valid ObjectId format
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('Mutation.create<%= Name %>', () => {
+    it('should create a new <%= name %>', async () => {
+      const input = { name: 'New <%= Name %>' };
+
+      const result = await resolvers.Mutation.create<%= Name %>(null, { input });
+
+      expect(result).toBeDefined();
+      expect(result.name).toBe(input.name);
+      expect(result._id).toBeDefined();
+    });
+
+    it('should fail with invalid input', async () => {
+      const input = {}; // Missing required fields
+
+      await expect(
+        resolvers.Mutation.create<%= Name %>(null, { input })
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('Mutation.update<%= Name %>', () => {
+    it('should update an existing <%= name %>', async () => {
+      const created = await <%= Name %>.create({ name: 'Original' });
+
+      const input = { name: 'Updated' };
+      const result = await resolvers.Mutation.update<%= Name %>(null, {
+        id: created._id.toString(),
+        input,
+      });
+
+      expect(result.name).toBe('Updated');
+    });
+
+    it('should return null for non-existent id', async () => {
+      const input = { name: 'Updated' };
+
+      const result = await resolvers.Mutation.update<%= Name %>(null, {
+        id: '507f1f77bcf86cd799439011',
+        input,
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('Mutation.delete<%= Name %>', () => {
+    it('should delete an existing <%= name %>', async () => {
+      const created = await <%= Name %>.create({ name: 'To Delete' });
+
+      const result = await resolvers.Mutation.delete<%= Name %>(null, {
+        id: created._id.toString(),
+      });
+
+      expect(result).toBe(true);
+
+      // Verify deletion
+      const found = await <%= Name %>.findById(created._id);
+      expect(found).toBeNull();
+    });
+
+    it('should return false for non-existent id', async () => {
+      const result = await resolvers.Mutation.delete<%= Name %>(null, {
+        id: '507f1f77bcf86cd799439011',
+      });
+
+      expect(result).toBe(false);
+    });
+  });
+
+<% if (relations && relations.length > 0) { %>
+  describe('Relations', () => {
+<% relations.forEach(function(relation) { %>
+    it('should populate <%= relation.fieldName %> relation', async () => {
+      // This test requires <%= relation.modelName %> to be created first
+      // Add actual relation tests here
+    });
+<% }); %>
+  });
+<% } %>
+});

@@ -1,0 +1,270 @@
+/**
+ * Cache utility with in-memory and Redis support
+ * @module utils/cache
+ */
+
+// In-memory cache fallback
+const memoryCache = new Map();
+
+/**
+ * Get Redis client if available
+ * @returns {Object|null} Redis client or null
+ */
+function getRedisClient() {
+  // Check if Redis is configured
+  if (process.env.REDIS_URL || process.env.REDIS_HOST) {
+    try {
+      // Dynamically import Redis if available
+      // This makes Redis optional - app works without it
+      const redis = require('redis');
+      const client = redis.createClient({
+        url: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,
+      });
+
+      client.on('error', (err) => {
+        console.error('Redis Client Error:', err);
+        console.warn('⚠️  Falling back to in-memory cache');
+      });
+
+      client.connect();
+      return client;
+    } catch (err) {
+      console.warn('⚠️  Redis not available, using in-memory cache');
+      return null;
+    }
+  }
+  return null;
+}
+
+let redisClient = null;
+
+/**
+ * Initialize cache system
+ * @returns {Promise<void>}
+ */
+export async function initCache() {
+  redisClient = getRedisClient();
+  if (redisClient) {
+    console.log('✓ Redis cache connected');
+  } else {
+    console.log('✓ Using in-memory cache');
+  }
+}
+
+/**
+ * Get value from cache
+ * @param {string} key - Cache key
+ * @returns {Promise<any>} Cached value or null
+ */
+export async function get(key) {
+  try {
+    if (redisClient) {
+      const value = await redisClient.get(key);
+      return value ? JSON.parse(value) : null;
+    }
+
+    // Fallback to memory cache
+    const cached = memoryCache.get(key);
+    if (cached && cached.expiry > Date.now()) {
+      return cached.value;
+    }
+
+    // Expired or doesn't exist
+    if (cached) {
+      memoryCache.delete(key);
+    }
+    return null;
+  } catch (err) {
+    console.error('Cache get error:', err);
+    return null;
+  }
+}
+
+/**
+ * Set value in cache
+ * @param {string} key - Cache key
+ * @param {any} value - Value to cache
+ * @param {number} ttl - Time to live in seconds (default: 300 = 5 minutes)
+ * @returns {Promise<boolean>} Success status
+ */
+export async function set(key, value, ttl = 300) {
+  try {
+    if (redisClient) {
+      await redisClient.setEx(key, ttl, JSON.stringify(value));
+      return true;
+    }
+
+    // Fallback to memory cache
+    memoryCache.set(key, {
+      value,
+      expiry: Date.now() + ttl * 1000,
+    });
+    return true;
+  } catch (err) {
+    console.error('Cache set error:', err);
+    return false;
+  }
+}
+
+/**
+ * Delete value from cache
+ * @param {string} key - Cache key
+ * @returns {Promise<boolean>} Success status
+ */
+export async function del(key) {
+  try {
+    if (redisClient) {
+      await redisClient.del(key);
+      return true;
+    }
+
+    memoryCache.delete(key);
+    return true;
+  } catch (err) {
+    console.error('Cache delete error:', err);
+    return false;
+  }
+}
+
+/**
+ * Delete all keys matching a pattern
+ * @param {string} pattern - Key pattern (e.g., "user:*")
+ * @returns {Promise<number>} Number of keys deleted
+ */
+export async function delPattern(pattern) {
+  try {
+    if (redisClient) {
+      const keys = await redisClient.keys(pattern);
+      if (keys.length > 0) {
+        await redisClient.del(keys);
+      }
+      return keys.length;
+    }
+
+    // Memory cache - simple pattern matching
+    let count = 0;
+    const regex = new RegExp('^' + pattern.replace('*', '.*') + '$');
+    for (const key of memoryCache.keys()) {
+      if (regex.test(key)) {
+        memoryCache.delete(key);
+        count++;
+      }
+    }
+    return count;
+  } catch (err) {
+    console.error('Cache delete pattern error:', err);
+    return 0;
+  }
+}
+
+/**
+ * Clear all cache
+ * @returns {Promise<boolean>} Success status
+ */
+export async function clear() {
+  try {
+    if (redisClient) {
+      await redisClient.flushDb();
+      return true;
+    }
+
+    memoryCache.clear();
+    return true;
+  } catch (err) {
+    console.error('Cache clear error:', err);
+    return false;
+  }
+}
+
+/**
+ * Generate cache key for GraphQL queries
+ * @param {string} typename - GraphQL type name
+ * @param {string} operation - Operation (list, get, etc.)
+ * @param {Object} args - Query arguments
+ * @returns {string} Cache key
+ */
+export function generateCacheKey(typename, operation, args = {}) {
+  const argsStr = Object.keys(args)
+    .sort()
+    .map((k) => `${k}:${JSON.stringify(args[k])}`)
+    .join('|');
+
+  return `gql:${typename}:${operation}:${argsStr}`;
+}
+
+/**
+ * Cache middleware for GraphQL resolvers
+ * Wraps a resolver with caching logic
+ * @param {Function} resolver - Original resolver function
+ * @param {Object} options - Cache options
+ * @param {string} options.typename - GraphQL type name
+ * @param {string} options.operation - Operation name
+ * @param {number} options.ttl - TTL in seconds (default: 300)
+ * @returns {Function} Wrapped resolver
+ */
+export function cacheResolver(resolver, options = {}) {
+  const { typename, operation, ttl = 300 } = options;
+
+  return async (parent, args, context, info) => {
+    // Skip cache if disabled in context
+    if (context.skipCache) {
+      return resolver(parent, args, context, info);
+    }
+
+    // Generate cache key
+    const cacheKey = generateCacheKey(typename, operation, args);
+
+    // Try to get from cache
+    const cached = await get(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+
+    // Execute resolver
+    const result = await resolver(parent, args, context, info);
+
+    // Cache result
+    await set(cacheKey, result, ttl);
+
+    return result;
+  };
+}
+
+/**
+ * Invalidate cache for a model
+ * Call this after create/update/delete mutations
+ * @param {string} typename - GraphQL type name
+ * @returns {Promise<number>} Number of keys deleted
+ */
+export async function invalidateModel(typename) {
+  return delPattern(`gql:${typename}:*`);
+}
+
+/**
+ * Clean up expired entries from memory cache
+ * Only needed for in-memory cache
+ */
+export function cleanupMemoryCache() {
+  const now = Date.now();
+  for (const [key, cached] of memoryCache.entries()) {
+    if (cached.expiry <= now) {
+      memoryCache.delete(key);
+    }
+  }
+}
+
+// Clean up memory cache every 5 minutes
+if (!redisClient) {
+  setInterval(cleanupMemoryCache, 5 * 60 * 1000);
+}
+
+/**
+ * Close cache connections
+ * @returns {Promise<void>}
+ */
+export async function closeCache() {
+  if (redisClient) {
+    await redisClient.quit();
+  }
+  memoryCache.clear();
+}

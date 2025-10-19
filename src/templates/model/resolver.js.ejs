@@ -2,13 +2,91 @@ import <%= Name %> from '../../models/<%= Name %>.js';
 
 export default {
   Query: {
-    <%= Name.charAt(0).toLowerCase() + Name.slice(1) %>s: async () => <%= Name %>.find().lean(),
-    <%= Name.charAt(0).toLowerCase() + Name.slice(1) %>: async (_, { id }) => <%= Name %>.findById(id).lean(),
+    <%= name %>s: async (_, args) => {
+<% if (withPagination) { %>
+      const { page = 1, limit = 10, sort = '-createdAt', filter = {} } = args;
+
+      // Build filter query
+      const query = {};
+      if (filter.name) {
+        query.name = { $regex: filter.name, $options: 'i' };
+      }
+<% if (relations && relations.length > 0) { %>
+      // Relation filters
+<% relations.forEach(function(relation) { %>
+      if (filter.<%= relation.fieldName %>Id) {
+        query.<%= relation.fieldName %> = filter.<%= relation.fieldName %>Id;
+      }
+<% }); %>
+<% } %>
+
+      // Calculate pagination
+      const skip = (page - 1) * limit;
+
+      // Execute query with pagination
+      const [items, total] = await Promise.all([
+        <%= Name %>.find(query)
+          .sort(sort)
+          .skip(skip)
+          .limit(limit)<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>
+          .lean(),
+        <%= Name %>.countDocuments(query),
+      ]);
+
+      return {
+        items,
+        pageInfo: {
+          page,
+          limit,
+          total,
+          hasMore: skip + items.length < total,
+        },
+      };
+<% } else { %>
+      return <%= Name %>.find()<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>.lean();
+<% } %>
+    },
+    <%= name %>: async (_, { id }) => <%= Name %>.findById(id)<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>.lean(),
   },
   Mutation: {
-    create<%= Name %>: async (_, { name }) => <%= Name %>.create({ name }),
-    update<%= Name %>: async (_, { id, name }) =>
-      <%= Name %>.findByIdAndUpdate(id, { name }, { new: true, lean: true }),
+    create<%= Name %>: async (_, { input }) => {
+<% if (relations && relations.length > 0) { %>
+      // Handle relation IDs
+      const data = {
+        ...input,
+<% relations.forEach(function(relation) { %>
+        <%= relation.fieldName %>: input.<%= relation.isArray ? relation.fieldName + 'Ids' : relation.fieldName + 'Id' %>,
+<% }); %>
+      };
+      // Remove ID fields from input
+<% relations.forEach(function(relation) { %>
+      delete data.<%= relation.isArray ? relation.fieldName + 'Ids' : relation.fieldName + 'Id' %>;
+<% }); %>
+
+      return <%= Name %>.create(data);
+<% } else { %>
+      return <%= Name %>.create(input);
+<% } %>
+    },
+    update<%= Name %>: async (_, { id, input }) => {
+<% if (relations && relations.length > 0) { %>
+      // Handle relation IDs
+      const data = {
+        ...input,
+<% relations.forEach(function(relation) { %>
+        <%= relation.fieldName %>: input.<%= relation.isArray ? relation.fieldName + 'Ids' : relation.fieldName + 'Id' %>,
+<% }); %>
+      };
+      // Remove ID fields from input
+<% relations.forEach(function(relation) { %>
+      delete data.<%= relation.isArray ? relation.fieldName + 'Ids' : relation.fieldName + 'Id' %>;
+<% }); %>
+
+      return <%= Name %>.findByIdAndUpdate(id, data, { new: true, lean: true });
+<% } else { %>
+      return <%= Name %>.findByIdAndUpdate(id, input, { new: true, lean: true });
+<% } %>
+    },
     delete<%= Name %>: async (_, { id }) => !!(await <%= Name %>.findByIdAndDelete(id)),
   },
 };
