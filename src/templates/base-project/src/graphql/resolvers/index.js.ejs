@@ -1,6 +1,7 @@
 import merge from 'lodash.merge';
 import path from 'path';
-import { glob } from 'glob';
+import pkg from 'glob';
+const { glob } = pkg;
 import { pathToFileURL } from 'url';
 
 const cwd = path.resolve(process.cwd(), 'src', 'graphql', 'resolvers');
