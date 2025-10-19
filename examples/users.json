@@ -1,0 +1,29 @@
+[
+  {
+    "username": "john_doe",
+    "email": "john@example.com",
+    "age": 28,
+    "isActive": true,
+    "role": "admin",
+    "tags": ["developer", "nodejs"],
+    "createdAt": "2024-01-15T10:30:00Z"
+  },
+  {
+    "username": "jane_smith",
+    "email": "jane@example.com",
+    "age": 32,
+    "isActive": true,
+    "role": "user",
+    "tags": ["designer", "ux"],
+    "createdAt": "2024-01-16T14:20:00Z"
+  },
+  {
+    "username": "bob_wilson",
+    "email": "bob@example.com",
+    "age": 45,
+    "isActive": false,
+    "role": "moderator",
+    "tags": ["support"],
+    "createdAt": "2024-01-17T09:15:00Z"
+  }
+]

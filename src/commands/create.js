@@ -12,10 +12,13 @@ const __dirname = path.dirname(__filename);
 /**
  * Creates a new API project from templates
  * @param {string} projectName - The name of the project to create (lowercase, alphanumeric, hyphens, underscores, dots)
+ * @param {Object} options - Command options
+ * @param {boolean} options.force - Overwrite existing directory if it exists
+ * @param {boolean} options.skipInstall - Skip npm install after project creation
  * @returns {Promise<void>}
  * @throws {Error} If project name is invalid or directory already exists with content
  */
-export default async function create(projectName) {
+export default async function create(projectName, options = {}) {
   // Validate project name
   const validation = validateProjectName(projectName);
   if (!validation.valid) {
@@ -40,13 +43,18 @@ export default async function create(projectName) {
     if (await fs.pathExists(targetDir)) {
       const files = await fs.readdir(targetDir);
       if (files.length > 0) {
-        spinner.fail(chalk.red(`Directory ${projectName} already exists and is not empty`));
-        console.log(
-          chalk.yellow(
-            '\nPlease choose a different name or remove the existing directory first.'
-          )
-        );
-        process.exit(1);
+        if (!options.force) {
+          spinner.fail(chalk.red(`Directory ${projectName} already exists and is not empty`));
+          console.log(
+            chalk.yellow(
+              '\nPlease choose a different name, remove the existing directory, or use --force to overwrite.'
+            )
+          );
+          process.exit(1);
+        } else {
+          spinner.info(chalk.yellow(`Overwriting existing directory ${projectName}...`));
+          await fs.emptyDir(targetDir);
+        }
       }
     }
 
@@ -68,6 +76,12 @@ export default async function create(projectName) {
       }
     }
 
+    // Determine which GraphQL server to use (default to Yoga)
+    const useYoga = options.yoga || (!options.apollo && !options.yoga);
+    const serverType = useYoga ? 'GraphQL Yoga' : 'Apollo Server';
+
+    console.log(chalk.gray(`Using ${serverType}...`));
+
     // Render EJS files
     const render = async (srcRel, destRel, locals = {}) => {
       const src = path.join(tplRoot, srcRel);
@@ -77,11 +91,22 @@ export default async function create(projectName) {
       await fs.writeFile(dest, content, 'utf8');
     };
 
-    await render('package.json.ejs', 'package.json');
+    // Choose package.json based on server type
+    const packageTemplate = useYoga ? 'package-yoga.json.ejs' : 'package.json.ejs';
+    await render(packageTemplate, 'package.json');
     await render('README.md.ejs', 'README.md');
-    await render(path.join('src', 'server.js.ejs'), path.join('src', 'server.js'));
-    await render(path.join('src', 'db', 'connection.js.ejs'), path.join('src', 'db', 'connection.js'));
-    await render(path.join('src', 'models', 'index.js.ejs'), path.join('src', 'models', 'index.js'));
+
+    // Choose server template based on server type
+    const serverTemplate = useYoga ? 'src/server-yoga.js.ejs' : 'src/server.js.ejs';
+    await render(serverTemplate, path.join('src', 'server.js'));
+    await render(
+      path.join('src', 'db', 'connection.js.ejs'),
+      path.join('src', 'db', 'connection.js')
+    );
+    await render(
+      path.join('src', 'models', 'index.js.ejs'),
+      path.join('src', 'models', 'index.js')
+    );
     await render(
       path.join('src', 'graphql', 'typeDefs', 'index.js.ejs'),
       path.join('src', 'graphql', 'typeDefs', 'index.js')
@@ -95,11 +120,22 @@ export default async function create(projectName) {
 
     console.log(`\n👉 Next steps:`);
     console.log(chalk.cyan(`  cd ${projectName}`));
-    console.log(chalk.cyan('  npm install'));
+
+    if (options.skipInstall) {
+      console.log(chalk.yellow('  (Skipped npm install - remember to run it later)'));
+      console.log(chalk.cyan('  npm install'));
+    } else {
+      console.log(chalk.cyan('  npm install'));
+    }
+
     console.log(chalk.cyan('  cp .env.example .env  # configure MONGODB_URI'));
     console.log(chalk.cyan('  npm run dev'));
+
+    if (options.skipInstall) {
+      console.log(chalk.gray('\n💡 Tip: Use --skip-install to skip dependency installation'));
+    }
   } catch (err) {
-    spinner.fail(chalk.red('Project creation failed: ' + err.message));
+    spinner.fail(chalk.red(`Project creation failed: ${err.message}`));
     console.error(chalk.gray('\nError details:'), err);
     process.exit(1);
   }

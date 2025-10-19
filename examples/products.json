@@ -1,0 +1,40 @@
+[
+  {
+    "name": "Laptop Pro 15",
+    "description": "High-performance laptop for professionals",
+    "price": 1299.99,
+    "stock": 45,
+    "category": "Electronics",
+    "brand": "TechCorp",
+    "isAvailable": true,
+    "specifications": {
+      "cpu": "Intel i7",
+      "ram": "16GB",
+      "storage": "512GB SSD"
+    },
+    "images": ["https://example.com/laptop1.jpg", "https://example.com/laptop2.jpg"],
+    "ratings": [4.5, 4.8, 5.0, 4.2],
+    "tags": ["laptop", "professional", "high-end"],
+    "releaseDate": "2024-01-10",
+    "weight": 1.8
+  },
+  {
+    "name": "Wireless Mouse",
+    "description": "Ergonomic wireless mouse",
+    "price": 29.99,
+    "stock": 150,
+    "category": "Accessories",
+    "brand": "PeripheralPlus",
+    "isAvailable": true,
+    "specifications": {
+      "dpi": "3200",
+      "battery": "AA",
+      "connectivity": "2.4GHz"
+    },
+    "images": ["https://example.com/mouse1.jpg"],
+    "ratings": [4.0, 4.5, 3.8],
+    "tags": ["mouse", "wireless", "ergonomic"],
+    "releaseDate": "2023-11-20",
+    "weight": 0.1
+  }
+]

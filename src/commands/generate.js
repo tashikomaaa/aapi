@@ -23,14 +23,14 @@ function pascalCase(str) {
  * Generates code files for a model, resolver, and GraphQL schema
  * @param {string} type - The type of code to generate (currently only "model" is supported)
  * @param {string} name - The name of the model to generate
+ * @param {Object} options - Command options
+ * @param {boolean} options.force - Overwrite existing files if they exist
  * @returns {Promise<void>}
  * @throws {Error} If type is not supported or name is invalid
  */
-export default async function generate(type, name) {
+export default async function generate(type, name, options = {}) {
   if (type !== 'model') {
-    console.error(
-      chalk.red(`\n✗ Unsupported type: ${type}. Use: aapi generate model <Name>`)
-    );
+    console.error(chalk.red(`\n✗ Unsupported type: ${type}. Use: aapi generate model <Name>`));
     process.exit(1);
   }
 
@@ -84,13 +84,21 @@ export default async function generate(type, name) {
     if (await fs.pathExists(resolverPath)) existingFiles.push(resolverPath);
 
     if (existingFiles.length > 0) {
-      spinner.fail(chalk.red(`Model ${Name} already exists`));
-      console.log(chalk.yellow('\nExisting files:'));
-      existingFiles.forEach((file) => console.log(chalk.yellow(`  - ${path.relative(cwd, file)}`)));
-      console.log(
-        chalk.yellow('\nPlease choose a different name or remove the existing files first.')
-      );
-      process.exit(1);
+      if (!options.force) {
+        spinner.fail(chalk.red(`Model ${Name} already exists`));
+        console.log(chalk.yellow('\nExisting files:'));
+        existingFiles.forEach((file) =>
+          console.log(chalk.yellow(`  - ${path.relative(cwd, file)}`))
+        );
+        console.log(
+          chalk.yellow(
+            '\nPlease choose a different name, remove the existing files, or use --force to overwrite.'
+          )
+        );
+        process.exit(1);
+      } else {
+        spinner.info(chalk.yellow(`Overwriting existing model ${Name}...`));
+      }
     }
 
     // 1) Mongoose model
@@ -109,11 +117,9 @@ export default async function generate(type, name) {
     console.log(chalk.cyan(`  - src/graphql/typeDefs/${Name}.graphql`));
     console.log(chalk.cyan(`  - src/graphql/resolvers/${Name}Resolver.js`));
 
-    console.log(
-      chalk.yellow('\n💡 Remember to restart your server if it\'s currently running.')
-    );
+    console.log(chalk.yellow("\n💡 Remember to restart your server if it's currently running."));
   } catch (err) {
-    spinner.fail(chalk.red('Generation failed: ' + err.message));
+    spinner.fail(chalk.red(`Generation failed: ${err.message}`));
     console.error(chalk.gray('\nError details:'), err);
     process.exit(1);
   }

@@ -1,0 +1,60 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build (if needed)
+        run: |
+          if [ -f "tsconfig.json" ]; then
+            npm run build
+          fi
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release Notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const release = await github.rest.repos.getLatestRelease({
+              owner,
+              repo
+            });
+
+            console.log(`Published version ${release.data.tag_name} to npm`);
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: context.payload.release.id,
+              body: `📦 Successfully published to npm!\n\nInstall with: \`npm install -g aapi@${release.data.tag_name}\``
+            });
