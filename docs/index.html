@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AAPI - Automatic API Builder for Node.js. Build production-ready GraphQL APIs with Apollo Server/GraphQL Yoga and MongoDB in seconds.">
+    <meta name="keywords" content="GraphQL, Apollo Server, GraphQL Yoga, MongoDB, Mongoose, Node.js, API Generator, CLI">
+    <meta name="author" content="AAPI Contributors">
+    <title>AAPI - Automatic API Builder</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <span class="logo">🧠</span>
+                <span class="brand-name">AAPI</span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#usage">Usage</a></li>
+                <li><a href="#api">API Reference</a></li>
+                <li><a href="#contributing">Contributing</a></li>
+                <li><a href="https://github.com/tashikomaaa/aapi" target="_blank" class="github-link">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    GitHub
+                </a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    <span class="gradient-text">AAPI</span>
+                    <br>
+                    Automatic API Builder
+                </h1>
+                <p class="hero-subtitle">Build production-ready GraphQL APIs with MongoDB in seconds</p>
+                <div class="hero-badges">
+                    <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg" alt="Node Version">
+                    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
+                    <img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="Contributions Welcome">
+                </div>
+                <div class="hero-actions">
+                    <a href="#installation" class="btn btn-primary">Get Started</a>
+                    <a href="https://github.com/tashikomaaa/aapi" target="_blank" class="btn btn-secondary">View on GitHub</a>
+                </div>
+            </div>
+            <div class="hero-code">
+                <pre><code><span class="comment"># Install AAPI globally</span>
+npm install -g aapi
+
+<span class="comment"># Create a new API project</span>
+aapi create my-api --secure
+
+<span class="comment"># Start developing</span>
+cd my-api
+npm install
+npm run dev
+
+<span class="comment"># Your API is live! 🚀</span></code></pre>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section id="overview" class="section">
+            <div class="container">
+                <h2 class="section-title">What is AAPI?</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Lightning Fast</h3>
+                        <p>Generate complete GraphQL APIs with Apollo Server or GraphQL Yoga in seconds. No boilerplate, just pure productivity.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔒</div>
+                        <h3>Production Ready</h3>
+                        <p>Built-in security features: JWT authentication, RBAC, rate limiting, input sanitization, and comprehensive audit logging.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🧩</div>
+                        <h3>Flexible & Extensible</h3>
+                        <p>EJS-based templates, auto-discovery of resolvers, and clean modular architecture. Customize everything to your needs.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📦</div>
+                        <h3>Zero Configuration</h3>
+                        <p>Start with sensible defaults. MongoDB + GraphQL integration works out of the box. Scale when you need to.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="section section-alt">
+            <div class="container">
+                <h2 class="section-title">Features</h2>
+                <div class="two-column">
+                    <div class="feature-list">
+                        <h3>Core Features</h3>
+                        <ul>
+                            <li>✅ One-command project setup (<code>aapi create &lt;project&gt;</code>)</li>
+                            <li>✅ Automatic MongoDB + GraphQL integration</li>
+                            <li>✅ Model generator (<code>aapi generate model &lt;Name&gt;</code>)</li>
+                            <li>✅ JSON schema import - Auto-detect fields!</li>
+                            <li>✅ GraphQL Yoga (default) or Apollo Server</li>
+                            <li>✅ Auto-discovery of resolvers (no manual imports)</li>
+                            <li>✅ Dynamic EJS-based templates</li>
+                            <li>✅ Clean modular file structure</li>
+                            <li>✅ 100% ES Modules</li>
+                            <li>✅ Open-source & MIT licensed</li>
+                        </ul>
+                    </div>
+                    <div class="feature-list">
+                        <h3>Security Features (<code>--secure</code> flag)</h3>
+                        <ul>
+                            <li>🔐 JWT Authentication (access & refresh tokens)</li>
+                            <li>🛡️ Role-Based Access Control (RBAC)</li>
+                            <li>⏱️ Rate Limiting (DDoS protection)</li>
+                            <li>🧹 Input Sanitization (XSS & NoSQL injection prevention)</li>
+                            <li>📋 Security Headers (OWASP recommended)</li>
+                            <li>📝 Audit Logging (MongoDB TTL, 90-day retention)</li>
+                            <li>🔒 Account Locking (after 5 failed attempts)</li>
+                            <li>🌐 CORS Protection (configurable whitelist)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="installation" class="section">
+            <div class="container">
+                <h2 class="section-title">Installation</h2>
+                <div class="install-methods">
+                    <div class="install-method">
+                        <h3>Global Installation (Recommended)</h3>
+                        <pre><code>npm install -g aapi</code></pre>
+                        <p>Install AAPI globally to use it anywhere on your system.</p>
+                    </div>
+                    <div class="install-method">
+                        <h3>Local Development</h3>
+                        <pre><code>git clone https://github.com/tashikomaaa/aapi.git
+cd aapi
+npm install
+npm link   <span class="comment"># exposes the aapi CLI globally</span></code></pre>
+                        <p>Clone and link locally for development or contributions.</p>
+                    </div>
+                </div>
+
+                <h3 class="subsection-title">Requirements</h3>
+                <ul class="requirements-list">
+                    <li><strong>Node.js:</strong> ≥18.0.0</li>
+                    <li><strong>npm:</strong> ≥9.0.0</li>
+                    <li><strong>MongoDB:</strong> Local or cloud instance</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="usage" class="section section-alt">
+            <div class="container">
+                <h2 class="section-title">Usage</h2>
+
+                <h3 class="subsection-title">Creating a New Project</h3>
+                <div class="code-example">
+                    <h4>With GraphQL Yoga (Recommended)</h4>
+                    <pre><code>aapi create my-api
+cd my-api
+npm install
+cp .env.example .env
+npm run dev</code></pre>
+                </div>
+
+                <div class="code-example">
+                    <h4>With Security Features</h4>
+                    <pre><code>aapi create my-api --secure
+cd my-api
+npm install
+cp .env.example .env
+
+<span class="comment"># Generate JWT secrets (IMPORTANT!)</span>
+npm run security:generate-secret
+
+<span class="comment"># Update .env with generated secrets, then start</span>
+npm run dev</code></pre>
+                </div>
+
+                <div class="code-example">
+                    <h4>With Apollo Server</h4>
+                    <pre><code>aapi create my-api --apollo
+cd my-api
+npm install
+cp .env.example .env
+npm run dev</code></pre>
+                </div>
+
+                <h3 class="subsection-title">Generating Models</h3>
+                <div class="code-example">
+                    <h4>Manual Model Generation</h4>
+                    <pre><code>aapi generate model User</code></pre>
+                    <p>Creates three files: Mongoose model, GraphQL schema, and resolver.</p>
+                </div>
+
+                <div class="code-example">
+                    <h4>From JSON Schema (Auto-detect)</h4>
+                    <pre><code><span class="comment"># Export from MongoDB</span>
+mongoexport --collection=users --db=mydb --out=users.json
+
+<span class="comment"># Import into AAPI (automatically detects field types)</span>
+aapi import users.json
+
+<span class="comment"># Or with custom name</span>
+aapi import data.json --name Product
+
+<span class="comment"># Preview what will be generated</span>
+aapi import users.json --preview</code></pre>
+                </div>
+
+                <h3 class="subsection-title">Project Structure</h3>
+                <pre><code>my-api/
+├── .env.example
+├── package.json
+├── src/
+│   ├── db/
+│   │   └── connection.js        <span class="comment"># MongoDB connection</span>
+│   ├── graphql/
+│   │   ├── typeDefs/
+│   │   │   ├── base.graphql     <span class="comment"># Base GraphQL types</span>
+│   │   │   └── index.js         <span class="comment"># TypeDefs loader</span>
+│   │   └── resolvers/
+│   │       └── index.js         <span class="comment"># Resolvers loader</span>
+│   ├── models/
+│   │   └── index.js             <span class="comment"># Mongoose models</span>
+│   └── server.js                <span class="comment"># Server entry point</span>
+└── README.md</code></pre>
+            </div>
+        </section>
+
+        <section id="api" class="section">
+            <div class="container">
+                <h2 class="section-title">CLI Commands</h2>
+                <div class="api-reference">
+                    <div class="command-group">
+                        <h3>Project Creation</h3>
+                        <div class="command-item">
+                            <code>aapi create &lt;name&gt; [options]</code>
+                            <p>Create a new AAPI project.</p>
+                            <ul>
+                                <li><code>--yoga</code> - Use GraphQL Yoga (default)</li>
+                                <li><code>--apollo</code> - Use Apollo Server</li>
+                                <li><code>--secure</code> - Add authentication & security features</li>
+                                <li><code>--force</code> - Overwrite existing directory</li>
+                                <li><code>--skip-install</code> - Skip npm install</li>
+                            </ul>
+                        </div>
+                        <div class="command-item">
+                            <code>aapi init [options]</code>
+                            <p>Add AAPI to existing Node.js project.</p>
+                        </div>
+                    </div>
+
+                    <div class="command-group">
+                        <h3>Model Generation</h3>
+                        <div class="command-item">
+                            <code>aapi generate model &lt;Name&gt;</code>
+                            <p>Generate model, schema, and resolver files.</p>
+                        </div>
+                        <div class="command-item">
+                            <code>aapi import &lt;file.json&gt; [options]</code>
+                            <p>Import models from JSON schema with auto-detection.</p>
+                            <ul>
+                                <li><code>--name &lt;Name&gt;</code> - Custom model name</li>
+                                <li><code>--preview</code> - Preview without creating files</li>
+                                <li><code>--force</code> - Overwrite existing files</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="command-group">
+                        <h3>Utilities</h3>
+                        <div class="command-item">
+                            <code>aapi list</code>
+                            <p>List all models in the current project.</p>
+                        </div>
+                        <div class="command-item">
+                            <code>aapi --help</code>
+                            <p>Show help information.</p>
+                        </div>
+                        <div class="command-item">
+                            <code>aapi --version</code>
+                            <p>Show version information.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="subsection-title">Tech Stack</h3>
+                <table class="tech-stack-table">
+                    <thead>
+                        <tr>
+                            <th>Layer</th>
+                            <th>Technology</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>GraphQL Server</td>
+                            <td>GraphQL Yoga (recommended) / Apollo Server</td>
+                        </tr>
+                        <tr>
+                            <td>Web Framework</td>
+                            <td>Native Node.js HTTP / Express.js</td>
+                        </tr>
+                        <tr>
+                            <td>Database</td>
+                            <td>MongoDB + Mongoose ODM</td>
+                        </tr>
+                        <tr>
+                            <td>Authentication</td>
+                            <td>JWT (jsonwebtoken) + bcryptjs</td>
+                        </tr>
+                        <tr>
+                            <td>Validation</td>
+                            <td>validator.js</td>
+                        </tr>
+                        <tr>
+                            <td>CLI Framework</td>
+                            <td>Commander.js</td>
+                        </tr>
+                        <tr>
+                            <td>Templating</td>
+                            <td>EJS</td>
+                        </tr>
+                        <tr>
+                            <td>Module System</td>
+                            <td>ES Modules (Node ≥18)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="contributing" class="section section-alt">
+            <div class="container">
+                <h2 class="section-title">Contributing</h2>
+                <p class="center-text">AAPI is open-source and community-driven. We welcome issues, pull requests, and suggestions!</p>
+
+                <div class="contribute-steps">
+                    <div class="contribute-step">
+                        <div class="step-number">1</div>
+                        <h3>Fork the Repository</h3>
+                        <p>Create your own fork of the AAPI repository on GitHub.</p>
+                    </div>
+                    <div class="contribute-step">
+                        <div class="step-number">2</div>
+                        <h3>Create Feature Branch</h3>
+                        <pre><code>git checkout -b feature/my-new-feature</code></pre>
+                    </div>
+                    <div class="contribute-step">
+                        <div class="step-number">3</div>
+                        <h3>Commit Changes</h3>
+                        <pre><code>git commit -m "feat: add my feature"</code></pre>
+                    </div>
+                    <div class="contribute-step">
+                        <div class="step-number">4</div>
+                        <h3>Open Pull Request</h3>
+                        <p>Push your changes and open a PR with a clear description.</p>
+                    </div>
+                </div>
+
+                <h3 class="subsection-title">Roadmap</h3>
+                <ul class="roadmap-list">
+                    <li>🔜 Interactive model generation with field type selection</li>
+                    <li>🔜 REST endpoints generator (optional alongside GraphQL)</li>
+                    <li>🔜 Auth directive + context utilities</li>
+                    <li>🔜 Plugin system for custom templates</li>
+                    <li>🔜 Project configuration file (aapi.config.json)</li>
+                    <li>🔜 Auto documentation generator (GraphQL → Markdown/OpenAPI)</li>
+                    <li>🔜 Testing templates (Jest + Supertest)</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>AAPI</h4>
+                    <p>Build APIs faster. Ship smarter.</p>
+                    <p class="footer-license">Licensed under MIT License</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="https://github.com/tashikomaaa/aapi">GitHub Repository</a></li>
+                        <li><a href="https://github.com/tashikomaaa/aapi/issues">Report Issues</a></li>
+                        <li><a href="https://github.com/tashikomaaa/aapi/discussions">Discussions</a></li>
+                        <li><a href="https://www.npmjs.com/package/aapi">NPM Package</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/tashikomaaa/aapi/blob/main/CONTRIBUTING.md">Contributing Guide</a></li>
+                        <li><a href="https://github.com/tashikomaaa/aapi/blob/main/CODE_OF_CONDUCT.md">Code of Conduct</a></li>
+                        <li><a href="https://github.com/tashikomaaa/aapi/blob/main/SECURITY.md">Security Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 AAPI Contributors. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Navbar background on scroll
+        window.addEventListener('scroll', () => {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+    </script>
+</body>
+</html>
