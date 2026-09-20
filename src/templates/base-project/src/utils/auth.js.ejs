@@ -6,10 +6,65 @@ import bcrypt from 'bcryptjs';
  * Provides secure token generation and verification
  */
 
-const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'your-access-secret-change-in-production';
-const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'your-refresh-secret-change-in-production';
+// Placeholder values shipped by the scaffolder. They are public knowledge, so a
+// token signed with one can be forged by anyone: they are only ever tolerated
+// outside production, and never silently.
+const PLACEHOLDER_SECRETS = [
+  'your-access-secret-change-in-production',
+  'your-refresh-secret-change-in-production',
+  'change-me',
+];
+
+const MIN_SECRET_LENGTH = 32;
+
+/**
+ * Reads a JWT secret from the environment and refuses to start with a weak one.
+ * @param {string} name - Environment variable name
+ * @returns {string} The secret
+ * @throws {Error} In production, if the secret is missing, a placeholder, or too short
+ */
+function requireSecret(name) {
+  const value = process.env[name];
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  let problem = null;
+  if (!value) {
+    problem = `${name} is not set`;
+  } else if (PLACEHOLDER_SECRETS.includes(value)) {
+    problem = `${name} still uses the scaffolded placeholder value`;
+  } else if (value.length < MIN_SECRET_LENGTH) {
+    problem = `${name} is shorter than ${MIN_SECRET_LENGTH} characters`;
+  }
+
+  if (!problem) {
+    return value;
+  }
+
+  if (isProduction) {
+    throw new Error(
+      `[security] ${problem}. Refusing to start: JWT tokens would be forgeable. ` +
+        'Generate one with: npm run security:generate-secret'
+    );
+  }
+
+  console.warn(
+    `⚠️  [security] ${problem}. Using an insecure development fallback — ` +
+      'the server will refuse to start in production.'
+  );
+  return value || `insecure-development-${name.toLowerCase()}`;
+}
+
+const ACCESS_TOKEN_SECRET = requireSecret('ACCESS_TOKEN_SECRET');
+const REFRESH_TOKEN_SECRET = requireSecret('REFRESH_TOKEN_SECRET');
 const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '15m';
 const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || '7d';
+
+if (ACCESS_TOKEN_SECRET === REFRESH_TOKEN_SECRET) {
+  throw new Error(
+    '[security] ACCESS_TOKEN_SECRET and REFRESH_TOKEN_SECRET must differ, ' +
+      'otherwise a refresh token is accepted as an access token.'
+  );
+}
 
 /**
  * Generates an access token for a user

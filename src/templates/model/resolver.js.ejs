@@ -28,7 +28,7 @@ export default {
         <%= Name %>.find(query)
           .sort(sort)
           .skip(skip)
-          .limit(limit)<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>
+          .limit(limit)<% if (relations && relations.length > 0) { %><%- populateChain %><% } %>
           .lean(),
         <%= Name %>.countDocuments(query),
       ]);
@@ -43,10 +43,10 @@ export default {
         },
       };
 <% } else { %>
-      return <%= Name %>.find()<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>.lean();
+      return <%= Name %>.find()<% if (relations && relations.length > 0) { %><%- populateChain %><% } %>.lean();
 <% } %>
     },
-    <%= name %>: async (_, { id }) => <%= Name %>.findById(id)<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>.lean(),
+    <%= name %>: async (_, { id }) => <%= Name %>.findById(id)<% if (relations && relations.length > 0) { %><%- populateChain %><% } %>.lean(),
   },
   Mutation: {
     create<%= Name %>: async (_, { input }) => {

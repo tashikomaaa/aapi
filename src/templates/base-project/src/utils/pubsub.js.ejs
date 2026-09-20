@@ -4,14 +4,18 @@
  * @module utils/pubsub
  */
 
-import { PubSub } from 'graphql-yoga';
+import { createPubSub } from 'graphql-yoga';
+import { createRequire } from 'node:module';
+
+// Redis support is optional: resolved lazily so the app runs without it.
+const require = createRequire(import.meta.url);
 
 let pubsub = null;
 
 /**
  * Initialize PubSub system
  * Uses Redis if available, otherwise in-memory
- * @returns {PubSub} PubSub instance
+ * @returns {ReturnType<typeof createPubSub>} PubSub instance
  */
 export function initPubSub() {
   if (pubsub) {
@@ -47,14 +51,14 @@ export function initPubSub() {
         subscribeClient,
       });
 
-      pubsub = new PubSub({ eventTarget });
-    } catch (err) {
+      pubsub = createPubSub({ eventTarget });
+    } catch {
       console.warn('⚠️  Redis not available for PubSub, using in-memory');
-      pubsub = new PubSub();
+      pubsub = createPubSub();
     }
   } else {
     // Development mode - use in-memory PubSub
-    pubsub = new PubSub();
+    pubsub = createPubSub();
     console.log('✓ Using in-memory PubSub');
   }
 
@@ -63,7 +67,7 @@ export function initPubSub() {
 
 /**
  * Get PubSub instance
- * @returns {PubSub} PubSub instance
+ * @returns {ReturnType<typeof createPubSub>} PubSub instance
  */
 export function getPubSub() {
   if (!pubsub) {

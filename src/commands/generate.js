@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import ejs from 'ejs';
 import ora from 'ora';
 import chalk from 'chalk';
+import { fileURLToPath } from 'url';
 import { validateModelName, sanitizePath } from '../utils/validate.js';
 import {
   parseRelations,
@@ -12,6 +13,9 @@ import {
   generatePopulateChain,
   generateReverseRelationSuggestion,
 } from '../utils/relations.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Converts a string to PascalCase (e.g., "my-model" => "MyModel")
@@ -69,19 +73,40 @@ export default async function generate(type, name, options = {}) {
   const enableCascadeDelete = options.cascadeDelete || false;
   const withSubscriptions = options.withSubscriptions || false;
   const withCache = options.withCache || false;
-  const withTests = options.withTests !== false; // Default to true
+  // `--no-tests` is mapped by commander to `options.tests === false`.
+  // `options.withTests` is kept for programmatic callers.
+  const withTests = options.tests !== false && options.withTests !== false;
   const cacheTTL = options.cacheTtl || 300;
 
   const spinner = ora(`Generating ${type} ${Name}...`).start();
 
   try {
     const cwd = process.cwd();
-    const tplRoot = path.resolve(
-      path.dirname(new URL(import.meta.url).pathname),
-      '..',
-      'templates',
-      'model'
-    );
+
+    // Subscriptions rely on the GraphQL Yoga PubSub. Apollo Server needs extra
+    // transport wiring (graphql-ws) that AAPI does not scaffold, so emitting a
+    // Subscription resolver there would produce code that cannot run.
+    if (withSubscriptions) {
+      const projectPkgPath = path.join(cwd, 'package.json');
+      if (await fs.pathExists(projectPkgPath)) {
+        const projectPkg = await fs.readJson(projectPkgPath);
+        const deps = { ...projectPkg.dependencies, ...projectPkg.devDependencies };
+        if (!deps['graphql-yoga']) {
+          spinner.fail(chalk.red('--with-subscriptions requires GraphQL Yoga'));
+          console.log(
+            chalk.yellow('\nThis project does not depend on graphql-yoga (Apollo Server project?).')
+          );
+          console.log(
+            chalk.gray(
+              '  Create a Yoga project with "aapi create <name>" (the default), or drop --with-subscriptions.'
+            )
+          );
+          process.exit(1);
+        }
+      }
+    }
+    const tplRoot = path.resolve(__dirname, '..', 'templates', 'model');
+    const baseTplRoot = path.resolve(__dirname, '..', 'templates', 'base-project');
 
     // Prepare relation data for templates
     const relationData = relations.map((rel) => ({
@@ -113,6 +138,25 @@ export default async function generate(type, name, options = {}) {
       );
       await fs.ensureDir(path.dirname(dest));
       await fs.writeFile(dest, content, 'utf8');
+    };
+
+    /**
+     * Renders a base-project template into the current project, but only when the
+     * destination is missing, so user edits are never clobbered.
+     * @returns {Promise<boolean>} true if the file was created
+     */
+    const ensureRuntimeDependency = async (srcRel, destRel) => {
+      const dest = path.join(cwd, destRel);
+      if (await fs.pathExists(dest)) return false;
+
+      const content = await ejs.renderFile(
+        path.join(baseTplRoot, srcRel),
+        { projectName: path.basename(cwd) },
+        { async: true }
+      );
+      await fs.ensureDir(path.dirname(dest));
+      await fs.writeFile(dest, content, 'utf8');
+      return true;
     };
 
     // Check if files already exist
@@ -157,7 +201,24 @@ export default async function generate(type, name, options = {}) {
       withSubscriptions || withCache ? 'resolver-with-subscriptions.js.ejs' : 'resolver.js.ejs';
     await render(resolverTemplate, resolverPath);
 
-    // 4) Tests (optional)
+    // 4) Runtime modules the generated resolver imports
+    const runtimeFiles = [];
+    if (withSubscriptions) {
+      const created = await ensureRuntimeDependency(
+        path.join('src', 'utils', 'pubsub.js.ejs'),
+        path.join('src', 'utils', 'pubsub.js')
+      );
+      if (created) runtimeFiles.push('src/utils/pubsub.js');
+    }
+    if (withCache) {
+      const created = await ensureRuntimeDependency(
+        path.join('src', 'utils', 'cache.js.ejs'),
+        path.join('src', 'utils', 'cache.js')
+      );
+      if (created) runtimeFiles.push('src/utils/cache.js');
+    }
+
+    // 5) Tests (optional)
     if (withTests) {
       const testPath = path.join(cwd, 'src', '__tests__', `${Name}.test.js`);
       await render('model.test.js.ejs', testPath);
@@ -172,6 +233,7 @@ export default async function generate(type, name, options = {}) {
     if (withTests) {
       console.log(chalk.cyan(`  - src/__tests__/${Name}.test.js`));
     }
+    runtimeFiles.forEach((file) => console.log(chalk.cyan(`  - ${file}`)));
 
     if (relations.length > 0) {
       console.log(chalk.green('\n✓ Relations configured:'));

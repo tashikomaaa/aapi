@@ -73,11 +73,8 @@ jobs:
           chmod +x bin/cli.js
           node bin/cli.js --version
 
-      - name: Test project creation
-        run: |
-          node bin/cli.js create test-project --skip-install
-          ls -la test-project
-          cat test-project/package.json
+      - name: Generated project must build, test, boot and serve (GraphQL Yoga)
+        run: npm run verify:generated
 
-      - name: Cleanup test project
-        run: rm -rf test-project
+      - name: Generated project must build, test, boot and serve (Apollo Server)
+        run: npm run verify:generated:apollo

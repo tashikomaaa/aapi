@@ -4,7 +4,7 @@ type <%= Name %> {
 <% if (relations && relations.length > 0) { %>
   # Relations
 <% relations.forEach(function(relation) { %>
-  <%= relation.graphqlField %>
+  <%- relation.graphqlField %>
 <% }); %>
 <% } %>
   createdAt: Date
@@ -33,7 +33,7 @@ input Create<%= Name %>Input {
 <% if (relations && relations.length > 0) { %>
   # Relation IDs
 <% relations.forEach(function(relation) { %>
-  <%= relation.inputField %>
+  <%- relation.inputField %>
 <% }); %>
 <% } %>
 }
@@ -43,7 +43,7 @@ input Update<%= Name %>Input {
 <% if (relations && relations.length > 0) { %>
   # Relation IDs
 <% relations.forEach(function(relation) { %>
-  <%= relation.inputField %>
+  <%- relation.inputField %>
 <% }); %>
 <% } %>
 }

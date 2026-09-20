@@ -91,8 +91,10 @@ export default async function init(options = {}) {
         render: true,
       },
       { src: envTemplate, dest: '.env.example', render: true },
-      { src: '.gitignore', dest: '.gitignore', render: false },
-      { src: '.editorconfig', dest: '.editorconfig', render: false },
+      { src: 'gitignore', dest: '.gitignore', render: false },
+      { src: 'editorconfig', dest: '.editorconfig', render: false },
+      { src: 'jest.config.js', dest: 'jest.config.js', render: false },
+      { src: 'jest.setup.js', dest: 'jest.setup.js', render: false },
       { src: 'README.md.ejs', dest: 'README.aapi.md', render: true }, // Don't overwrite README.md
     ];
 
@@ -207,18 +209,33 @@ export default async function init(options = {}) {
       };
     } else {
       aapiDependencies = {
-        '@apollo/server': '^4.11.0',
-        'apollo-server-express': '^3.13.0',
-        express: '^4.21.2',
-        mongoose: '^8.9.4',
+        '@apollo/server': '^4.11.3',
+        '@as-integrations/express4': '^1.1.2',
+        '@graphql-tools/merge': '^9.0.8',
+        '@graphql-tools/schema': '^10.0.7',
         dotenv: '^16.4.7',
+        express: '^4.21.2',
+        glob: '^11.0.0',
+        graphql: '^16.9.0',
+        'lodash.merge': '^4.6.2',
+        mongoose: '^8.9.4',
       };
     }
+
+    const testScript = 'node --experimental-vm-modules node_modules/jest/bin/jest.js';
+
+    const aapiDevDependencies = {
+      '@jest/globals': '^29.7.0',
+      jest: '^29.7.0',
+      'mongodb-memory-server': '^10.1.2',
+    };
 
     const aapiScripts = useSecure
       ? {
           dev: 'node --watch src/server.js',
           start: 'node src/server.js',
+          test: testScript,
+          'test:watch': `${testScript} --watch`,
           'security:check': 'npm audit && npm outdated',
           'security:generate-secret':
             "node -e \"console.log('New secret:', require('crypto').randomBytes(64).toString('hex'))\"",
@@ -226,6 +243,8 @@ export default async function init(options = {}) {
       : {
           dev: 'node --watch src/server.js',
           start: 'node src/server.js',
+          test: testScript,
+          'test:watch': `${testScript} --watch`,
         };
 
     let packageUpdated = false;
@@ -238,6 +257,18 @@ export default async function init(options = {}) {
     for (const [dep, version] of Object.entries(aapiDependencies)) {
       if (!packageJson.dependencies[dep]) {
         packageJson.dependencies[dep] = version;
+        packageUpdated = true;
+      }
+    }
+
+    // Merge devDependencies
+    if (!packageJson.devDependencies) {
+      packageJson.devDependencies = {};
+    }
+
+    for (const [dep, version] of Object.entries(aapiDevDependencies)) {
+      if (!packageJson.devDependencies[dep]) {
+        packageJson.devDependencies[dep] = version;
         packageUpdated = true;
       }
     }

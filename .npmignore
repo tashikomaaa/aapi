@@ -6,6 +6,7 @@ __tests__/
 *.spec.js
 
 # Development
+scripts/
 .github/
 .vscode/
 .idea/

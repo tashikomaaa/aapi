@@ -39,7 +39,7 @@ const resolvers = {
         <%= Name %>.find(query)
           .sort(sort)
           .skip(skip)
-          .limit(limit)<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>
+          .limit(limit)<% if (relations && relations.length > 0) { %><%- populateChain %><% } %>
           .lean(),
         <%= Name %>.countDocuments(query),
       ]);
@@ -54,7 +54,7 @@ const resolvers = {
         },
       };
 <% } else { %>
-      return <%= Name %>.find()<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>.lean();
+      return <%= Name %>.find()<% if (relations && relations.length > 0) { %><%- populateChain %><% } %>.lean();
 <% } %>
     }<% if (withCache) { %>, {
       typename: '<%= Name %>',
@@ -63,7 +63,7 @@ const resolvers = {
     })<% } %>,
 
     <%= name %>: <% if (withCache) { %>cacheResolver(<% } %>async (_, { id }) =>
-      <%= Name %>.findById(id)<% if (relations && relations.length > 0) { %><%= populateChain %><% } %>.lean()<% if (withCache) { %>, {
+      <%= Name %>.findById(id)<% if (relations && relations.length > 0) { %><%- populateChain %><% } %>.lean()<% if (withCache) { %>, {
       typename: '<%= Name %>',
       operation: 'get',
       ttl: CACHE_TTL,

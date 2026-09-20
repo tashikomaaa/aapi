@@ -1,11 +1,15 @@
 import { mergeTypeDefs } from '@graphql-tools/merge';
 import { readFileSync } from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { globSync } from 'glob';
 
-const cwd = path.resolve(process.cwd(), 'src', 'graphql', 'typeDefs');
-const files = globSync('**/*.graphql', { cwd });
+// Resolved from this module, not from process.cwd(), so the server can be
+// started from any working directory (Docker, PM2, a monorepo root...).
+const typeDefsDir = path.dirname(fileURLToPath(import.meta.url));
+
+const files = globSync('**/*.graphql', { cwd: typeDefsDir });
 
 export const typeDefs = mergeTypeDefs(
-  files.map((f) => readFileSync(path.join(cwd, f), 'utf8'))
+  files.map((file) => readFileSync(path.join(typeDefsDir, file), 'utf8'))
 );
