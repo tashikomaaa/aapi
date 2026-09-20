@@ -4,10 +4,33 @@ import ejs from 'ejs';
 import ora from 'ora';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
 import { validateProjectName, sanitizePath } from '../utils/validate.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Runs `npm install` in the freshly created project.
+ * @param {string} cwd - Project directory
+ * @returns {Promise<{ok: boolean, output: string}>}
+ */
+function runNpmInstall(cwd) {
+  return new Promise((resolve) => {
+    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const child = spawn(npmCmd, ['install', '--no-audit', '--no-fund'], {
+      cwd,
+      shell: process.platform === 'win32',
+    });
+
+    let output = '';
+    child.stdout.on('data', (chunk) => (output += chunk));
+    child.stderr.on('data', (chunk) => (output += chunk));
+
+    child.on('error', (err) => resolve({ ok: false, output: err.message }));
+    child.on('close', (code) => resolve({ ok: code === 0, output }));
+  });
+}
 
 /**
  * Creates a new API project from templates
@@ -67,19 +90,37 @@ export default async function create(projectName, options = {}) {
     );
 
     // Copy configuration files if they exist
-    const configFiles = ['.gitignore', '.editorconfig'];
+    // npm never ships files named `.gitignore`, and `.npmignore` drops
+    // `.editorconfig`, so both templates are stored undotted and renamed here.
+    const configFiles = [
+      { src: 'gitignore', dest: '.gitignore' },
+      { src: 'editorconfig', dest: '.editorconfig' },
+      { src: 'jest.config.js', dest: 'jest.config.js' },
+      { src: 'jest.setup.js', dest: 'jest.setup.js' },
+    ];
     for (const file of configFiles) {
-      const srcPath = path.join(tplRoot, file);
+      const srcPath = path.join(tplRoot, file.src);
       if (await fs.pathExists(srcPath)) {
-        await fs.copy(srcPath, path.join(targetDir, file));
+        await fs.copy(srcPath, path.join(targetDir, file.dest));
+      } else {
+        throw new Error(`Missing template file: ${file.src} (broken AAPI installation)`);
       }
     }
 
     // Determine which GraphQL server to use (default to Yoga)
     const useYoga = options.yoga || (!options.apollo && !options.yoga);
-    const useSecure = options.secure || false;
+    const useSecure = Boolean(options.secure) && useYoga;
     const serverType = useYoga ? 'GraphQL Yoga' : 'Apollo Server';
     const securityMode = useSecure ? ' (Secure)' : '';
+
+    if (options.secure && options.apollo) {
+      spinner.warn(
+        chalk.yellow(
+          'Security features are only available with GraphQL Yoga. Falling back to Apollo Server without them.'
+        )
+      );
+      console.log(chalk.gray('  Drop --apollo to get the secure Yoga template.'));
+    }
 
     console.log(chalk.gray(`Using ${serverType}${securityMode}...`));
     if (useSecure) {
@@ -198,13 +239,24 @@ export default async function create(projectName, options = {}) {
 
     spinner.succeed(chalk.green(`Project ${projectName} created successfully!`));
 
+    let installed = false;
+    if (!options.skipInstall) {
+      const installSpinner = ora('Installing dependencies (npm install)...').start();
+      const result = await runNpmInstall(targetDir);
+
+      if (result.ok) {
+        installed = true;
+        installSpinner.succeed(chalk.green('Dependencies installed'));
+      } else {
+        installSpinner.fail(chalk.red('npm install failed - run it manually'));
+        console.error(chalk.gray(result.output.trim().split('\n').slice(-10).join('\n')));
+      }
+    }
+
     console.log(`\n👉 Next steps:`);
     console.log(chalk.cyan(`  cd ${projectName}`));
 
-    if (options.skipInstall) {
-      console.log(chalk.yellow('  (Skipped npm install - remember to run it later)'));
-      console.log(chalk.cyan('  npm install'));
-    } else {
+    if (!installed) {
       console.log(chalk.cyan('  npm install'));
     }
 

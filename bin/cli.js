@@ -5,6 +5,7 @@
  * @module bin/cli
  */
 
+import { createRequire } from 'module';
 import { Command } from 'commander';
 import create from '../src/commands/create.js';
 import generate from '../src/commands/generate.js';
@@ -16,12 +17,15 @@ import { validateNodeVersion } from '../src/utils/version.js';
 // Validate Node.js version before running any commands
 validateNodeVersion('18.0.0');
 
+const require = createRequire(import.meta.url);
+const { version } = require('../package.json');
+
 const program = new Command();
 
 program
   .name('aapi')
   .description('Automatic API builder for Node.js (Apollo + Mongoose)')
-  .version('0.1.0');
+  .version(version);
 
 program
   .command('create <projectName>')

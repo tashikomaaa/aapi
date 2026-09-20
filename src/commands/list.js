@@ -43,12 +43,13 @@ export default async function list() {
       const schemaPath = path.join(typeDefsDir, `${model}.graphql`);
       const resolverPath = path.join(resolversDir, `${model}Resolver.js`);
 
+      const hasModel = await fs.pathExists(modelPath);
       const hasSchema = await fs.pathExists(schemaPath);
       const hasResolver = await fs.pathExists(resolverPath);
 
       console.log(chalk.bold(`  ${model}`));
       console.log(
-        chalk.gray(`    Model:    ${hasSchema ? '✓' : '✗'} ${path.relative(cwd, modelPath)}`)
+        chalk.gray(`    Model:    ${hasModel ? '✓' : '✗'} ${path.relative(cwd, modelPath)}`)
       );
       console.log(
         chalk.gray(`    Schema:   ${hasSchema ? '✓' : '✗'} ${path.relative(cwd, schemaPath)}`)
@@ -57,7 +58,7 @@ export default async function list() {
         chalk.gray(`    Resolver: ${hasResolver ? '✓' : '✗'} ${path.relative(cwd, resolverPath)}`)
       );
 
-      if (!hasSchema || !hasResolver) {
+      if (!hasModel || !hasSchema || !hasResolver) {
         console.log(chalk.yellow(`    ⚠ Incomplete model (missing files)`));
       }
       console.log();
