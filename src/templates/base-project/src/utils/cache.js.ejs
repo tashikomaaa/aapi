@@ -3,6 +3,11 @@
  * @module utils/cache
  */
 
+import { createRequire } from 'node:module';
+
+// Redis support is optional: resolved lazily so the app runs without it.
+const require = createRequire(import.meta.url);
+
 // In-memory cache fallback
 const memoryCache = new Map();
 
@@ -206,8 +211,9 @@ export function cacheResolver(resolver, options = {}) {
   const { typename, operation, ttl = 300 } = options;
 
   return async (parent, args, context, info) => {
-    // Skip cache if disabled in context
-    if (context.skipCache) {
+    // Skip cache if disabled in context. The context is optional: resolvers are
+    // also called directly from tests, where GraphQL provides no context.
+    if (context?.skipCache) {
       return resolver(parent, args, context, info);
     }
 
@@ -253,9 +259,10 @@ export function cleanupMemoryCache() {
   }
 }
 
-// Clean up memory cache every 5 minutes
+// Clean up memory cache every 5 minutes.
+// unref() so this timer never keeps the process (or a test worker) alive.
 if (!redisClient) {
-  setInterval(cleanupMemoryCache, 5 * 60 * 1000);
+  setInterval(cleanupMemoryCache, 5 * 60 * 1000).unref();
 }
 
 /**
