@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import express from 'express';
 import http from 'http';
-import { ApolloServer } from 'apollo-server-express';
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@as-integrations/express4';
+import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
 import mongoose from 'mongoose';
 import { typeDefs } from './graphql/typeDefs/index.js';
 import resolvers from './graphql/resolvers/index.js';
@@ -24,6 +26,8 @@ async function start() {
     const app = express();
     app.use(express.json());
 
+    const server = http.createServer(app);
+
     // Health check endpoint
     app.get('/health', (req, res) => {
       res.json({
@@ -38,26 +42,30 @@ async function start() {
     const apollo = new ApolloServer({
       typeDefs,
       resolvers,
-      context: ({ req }) => ({
-        ip: req.ip,
-        userAgent: req.headers['user-agent'],
-      }),
       introspection: nodeEnv !== 'production',
-      playground: nodeEnv !== 'production',
-      formatError: (error) => {
-        console.error('GraphQL Error:', error);
-        return error;
+      plugins: [ApolloServerPluginDrainHttpServer({ httpServer: server })],
+      formatError: (formattedError) => {
+        console.error('GraphQL Error:', formattedError);
+        return formattedError;
       },
     });
 
     await apollo.start();
-    apollo.applyMiddleware({ app, path: '/graphql' });
+
+    app.use(
+      '/graphql',
+      expressMiddleware(apollo, {
+        context: async ({ req }) => ({
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+        }),
+      })
+    );
 
     // Start HTTP server
-    const server = http.createServer(app);
     server.listen({ port }, () => {
       console.log(`\n🚀 Server ready!`);
-      console.log(`   GraphQL endpoint: http://localhost:${port}${apollo.graphqlPath}`);
+      console.log(`   GraphQL endpoint: http://localhost:${port}/graphql`);
       console.log(`   Health check:     http://localhost:${port}/health`);
       console.log(`   Environment:      ${nodeEnv}`);
       console.log(`\n💡 Press Ctrl+C to stop\n`);
