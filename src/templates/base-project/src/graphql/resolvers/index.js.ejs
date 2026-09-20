@@ -1,27 +1,29 @@
 import merge from 'lodash.merge';
 import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { globSync } from 'glob';
-import { pathToFileURL } from 'url';
 
-const cwd = path.resolve(process.cwd(), 'src', 'graphql', 'resolvers');
+// Resolved from this module, not from process.cwd(), so the server can be
+// started from any working directory (Docker, PM2, a monorepo root...).
+const resolversDir = path.dirname(fileURLToPath(import.meta.url));
 
-// Récupère tous les fichiers *Resolver.js
-const resolverFiles = globSync('**/*Resolver.js', { cwd });
+// Collect every *Resolver.js file
+const resolverFiles = globSync('**/*Resolver.js', { cwd: resolversDir });
 
-// Importe dynamiquement chaque resolver
+// Import each resolver dynamically
 const resolversArray = [];
 
 for (const file of resolverFiles) {
-const modulePath = pathToFileURL(path.join(cwd, file)).href;
-const mod = await import(modulePath);
-if (mod.default) resolversArray.push(mod.default);
+  const modulePath = pathToFileURL(path.join(resolversDir, file)).href;
+  const mod = await import(modulePath);
+  if (mod.default) resolversArray.push(mod.default);
 }
 
 export default merge({}, ...resolversArray, {
-Query: {
-_ping: () => 'pong',
-},
-Mutation: {
-_noop: () => true,
-},
+  Query: {
+    _ping: () => 'pong',
+  },
+  Mutation: {
+    _noop: () => true,
+  },
 });

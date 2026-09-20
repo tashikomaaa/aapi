@@ -3,13 +3,20 @@
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import <%= Name %> from '../../models/<%= Name %>.js';
-import resolvers from '../../graphql/resolvers/<%= Name %>Resolver.js';
+import <%= Name %> from '../models/<%= Name %>.js';
+import resolvers from '../graphql/resolvers/<%= Name %>Resolver.js';
+<% if (withCache) { %>
+import { clear as clearCache } from '../utils/cache.js';
+<% } %>
 
 describe('<%= Name %> Model', () => {
   beforeEach(async () => {
     // Clean up database before each test
     await <%= Name %>.deleteMany({});
+<% if (withCache) { %>
+    // Cached results outlive the documents they were built from
+    await clearCache();
+<% } %>
   });
 
   describe('Model validation', () => {
@@ -49,6 +56,9 @@ describe('<%= Name %> Model', () => {
 describe('<%= Name %> Resolvers', () => {
   beforeEach(async () => {
     await <%= Name %>.deleteMany({});
+<% if (withCache) { %>
+    await clearCache();
+<% } %>
   });
 
   describe('Query.<%= name %>s', () => {

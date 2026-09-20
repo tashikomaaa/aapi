@@ -43,23 +43,26 @@ async function start() {
       maskedErrors: nodeEnv === 'production',
     });
 
-    // Create HTTP server
-    const server = createServer(yoga);
-
-    // Health check endpoint
-    server.on('request', (req, res) => {
+    // Create HTTP server.
+    // Health check and Yoga must share a single request listener: registering a
+    // second 'request' listener makes both run for every request, and the second
+    // one then throws ERR_HTTP_HEADERS_SENT and takes the process down.
+    const server = createServer((req, res) => {
       if (req.url === '/health' && req.method === 'GET') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        const dbConnected = mongoose.connection.readyState === 1;
+        res.writeHead(dbConnected ? 200 : 503, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({
-            status: 'ok',
+            status: dbConnected ? 'ok' : 'degraded',
             timestamp: new Date().toISOString(),
             uptime: process.uptime(),
-            mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+            mongodb: dbConnected ? 'connected' : 'disconnected',
           })
         );
         return;
       }
+
+      return yoga(req, res);
     });
 
     // Start server
