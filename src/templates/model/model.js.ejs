@@ -6,7 +6,7 @@ const <%= name %>Schema = new mongoose.Schema(
 <% if (relations && relations.length > 0) { %>
     // Relations
 <% relations.forEach(function(relation) { %>
-    <%= relation.mongooseField %>
+    <%- relation.mongooseField %>
 <% }); %>
 <% } %>
   },
