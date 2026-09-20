@@ -89,8 +89,8 @@ npm link   # exposes the `aapi` CLI globally
 ```bash
 aapi create my-api
 # or explicitly: aapi create my-api --yoga
+# dependencies are installed automatically (use --skip-install to opt out)
 cd my-api
-npm install
 cp .env.example .env
 npm run dev
 ```
@@ -100,10 +100,10 @@ npm run dev
 ```bash
 aapi create my-api --secure
 cd my-api
-npm install
 cp .env.example .env
 
-# Generate JWT secrets (IMPORTANT!)
+# Generate JWT secrets (REQUIRED - the server refuses to start in
+# production without strong, distinct ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)
 npm run security:generate-secret
 
 # Update .env with generated secrets
@@ -118,7 +118,6 @@ See [SECURITY.md](SECURITY.md) for complete security guide.
 ```bash
 aapi create my-api --apollo
 cd my-api
-npm install
 cp .env.example .env
 npm run dev
 ```
